@@ -4,8 +4,8 @@
 # Model parameters marked `placeholder` must be replaced by calibrated values (Phase 3).
 
 contract:
-  start_date: "2026-04-01"           # gas storage year: 1 April ...
-  end_date: "2027-03-31"             # ... to 31 March (inclusive)
+  start_date: "2027-04-01"           # gas storage year 2027/28: 1 April ...
+  end_date: "2028-03-31"             # ... to 31 March (inclusive)
   working_volume_mwh: 1_000_000      # working gas volume (WGV)
   initial_inventory_mwh: 0
   terminal_inventory_mwh: 0
@@ -27,7 +27,7 @@ contract:
   fuel_loss: 0.0                     # fraction of injected volume lost, e.g. 0.005
 
 market:
-  valuation_date: "2026-03-31"
+  valuation_date: "2026-11-18"       # set to the settlement date of the curve CSV
   discount_rate: 0.03                # continuously compounded, annual (illustrative)
   forward_curve:
     source: synthetic                # "synthetic" or "csv"

@@ -68,3 +68,13 @@ Andersen-Broadie dual upper bound, AGSI comparison, Streamlit app.
 - $F(t,T) = F(0,T)\exp(e^{-\kappa(T-t)}X_t + \tfrac12 V(t,T) - \tfrac12 V(0,T))$,
   $V(t,T) = \tfrac{\sigma^2}{2\kappa}(1-e^{-2\kappa(T-t)})$. Derive and verify in notebook 02.
 - Calibration under the historical measure; discuss vs risk-neutral and calibration window.
+
+## Decisions taken with the user
+
+- Contract = storage year 2027/28 (2027-04-01 to 2028-03-31). `valuation_date` = settlement date of
+  the hand-typed forward curve (`data/raw/ttf_forward_curve.csv`); synthetic curve until it exists.
+- Calibration: **reference window = post-crisis, 2023-04 to date**. Sensitivity on the full sample
+  with the 2020 price collapse, the 2021-2023 crisis and the 2026 rally flagged.
+- AGSI+ key: only via the `AGSI_API_KEY` env var; data cached in `data/raw/agsi_<CC>.csv`.
+- Notebooks are executed with `jupyter nbconvert --to notebook --execute --inplace` and committed
+  with outputs; figures go to `reports/figures/`.
