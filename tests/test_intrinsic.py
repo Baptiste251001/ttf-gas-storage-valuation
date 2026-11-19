@@ -247,3 +247,23 @@ def test_build_inputs_uses_forward_curve_and_discounting() -> None:
     # first step on 2027-04-01: tau = 135 / 365 from the 2026-11-17 valuation date
     assert inp.times[0] == pytest.approx(135 / 365)
     assert inp.discount[0] == pytest.approx(np.exp(-0.03 * 135 / 365))
+
+
+def test_grid_fast_path_matches_general_move_search(contango) -> None:
+    from gasstorage.storage.dp import GridMoves, MoveSearch, best_moves, volume_levels
+
+    _, inp = contango
+    c = dataclasses.replace(inp.contract, fuel_loss=0.01)
+    levels = volume_levels(c, 51)
+    search = MoveSearch.build(c, levels, 7.0)
+    rng = np.random.default_rng(0)
+    prices = rng.uniform(20, 60, size=300)
+    value_next = rng.normal(0, 1e6, size=(300, 51))
+    for days in (7.0, 2.0, 1.0):
+        grid = np.broadcast_to(levels, (300, 51))
+        tot, dv, cash = best_moves(c, grid, prices, 0.97, days, value_next, search)
+        gm = GridMoves.build(c, levels, days, search)
+        tot2, dv2, cash2, _ = gm.best(prices, 0.97, value_next)
+        np.testing.assert_allclose(tot2, tot, rtol=1e-12, atol=1e-6)
+        np.testing.assert_allclose(dv2, dv, atol=1e-9)
+        np.testing.assert_allclose(cash2, cash, rtol=1e-12, atol=1e-6)

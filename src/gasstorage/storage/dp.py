@@ -121,6 +121,93 @@ def best_moves(
     return pick(total), pick(dv), pick(cash)
 
 
+@dataclass(frozen=True)
+class GridMoves:
+    """Path-independent action set for states lying on the grid (backward passes).
+
+    For grid states the candidate moves, their feasibility and the interpolation weights of
+    their targets depend only on the grid level and the step length, so they are computed once.
+    Per scenario only the cash flow, linear in the price, and a gather of continuation values
+    remain. Candidates and tie-breaking are identical to :func:`best_moves`.
+    """
+
+    dv: np.ndarray
+    feasible: np.ndarray
+    i0: np.ndarray
+    w: np.ndarray
+    inj_volume: np.ndarray
+    wdr_volume: np.ndarray
+    contract: StorageContract
+
+    @classmethod
+    def build(
+        cls, contract: StorageContract, levels: np.ndarray, days: float, search: MoveSearch
+    ) -> GridMoves:
+        vol = contract.working_volume
+        tol = 1e-9 * vol
+        v = levels
+        inj = np.minimum(contract.max_injection(v, days), vol - v)
+        wdr = np.minimum(contract.max_withdrawal(v, days), v)
+        base = np.floor(v / search.delta + 1e-9) * search.delta
+        targets = np.concatenate(
+            [base[:, None] + search.offsets, (v + inj)[:, None], (v - wdr)[:, None], v[:, None]],
+            axis=1,
+        )
+        dv = targets - v[:, None]
+        feasible = (
+            (dv <= inj[:, None] + tol)
+            & (dv >= -wdr[:, None] - tol)
+            & (targets >= -tol)
+            & (targets <= vol + tol)
+        )
+        g = len(levels)
+        pos = np.clip(np.clip(targets, 0.0, vol) / search.delta, 0.0, g - 1.0)
+        i0 = np.minimum(np.floor(pos).astype(np.int64), g - 2)
+        return cls(
+            dv=dv,
+            feasible=feasible,
+            i0=i0,
+            w=pos - i0,
+            inj_volume=np.maximum(dv, 0.0),
+            wdr_volume=np.maximum(-dv, 0.0),
+            contract=contract,
+        )
+
+    def best(
+        self, price: np.ndarray, discount: float, value_next: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Best move from every grid level for each scenario.
+
+        Returns total, move, cash flow (each ``(P, G)``) and the chosen candidate index.
+        """
+        c = self.contract
+        v0 = value_next[:, self.i0]
+        cont = v0 + self.w * (value_next[:, self.i0 + 1] - v0)
+        buy = (price * (1.0 + c.fuel_loss) + c.injection_cost)[:, None, None]
+        sell = (price - c.withdrawal_cost)[:, None, None]
+        cash = discount * (-buy * self.inj_volume + sell * self.wdr_volume)
+        total = np.where(self.feasible, cash + cont, -np.inf)
+        best = np.argmax(total, axis=-1)[..., None]
+        pick = lambda a: np.take_along_axis(a, best, axis=-1)[..., 0]  # noqa: E731
+        rows = np.arange(self.dv.shape[0])
+        return pick(total), self.dv[rows, best[..., 0]], pick(cash), best[..., 0]
+
+    def realised(self, values: np.ndarray, choice: np.ndarray) -> np.ndarray:
+        """Interpolated ``values`` (``(P, G)``) at the targets of the chosen candidates."""
+        rows = np.arange(self.dv.shape[0])
+        i0 = self.i0[rows, choice]
+        w = self.w[rows, choice]
+        v0 = np.take_along_axis(values, i0, axis=1)
+        return v0 + w * (np.take_along_axis(values, i0 + 1, axis=1) - v0)
+
+
+def grid_moves_by_days(
+    contract: StorageContract, levels: np.ndarray, days: np.ndarray, search: MoveSearch
+) -> dict[float, GridMoves]:
+    """One :class:`GridMoves` per distinct step length."""
+    return {float(d): GridMoves.build(contract, levels, float(d), search) for d in np.unique(days)}
+
+
 def backward_values(
     contract: StorageContract,
     prices: np.ndarray,
@@ -135,11 +222,11 @@ def backward_values(
     d_end = float(discount[-1]) if discount_end is None else discount_end
     values = np.empty((k + 1, p, len(levels)))
     values[k] = terminal_values(contract, levels, d_end)[None, :]
-    grid = np.broadcast_to(levels, (p, len(levels)))
+    moves = grid_moves_by_days(contract, levels, days, search)
     for step in range(k - 1, -1, -1):
-        values[step], _, _ = best_moves(
-            contract, grid, prices[:, step], discount[step], days[step], values[step + 1], search
-        )
+        values[step] = moves[float(days[step])].best(
+            prices[:, step], discount[step], values[step + 1]
+        )[0]
     return values
 
 

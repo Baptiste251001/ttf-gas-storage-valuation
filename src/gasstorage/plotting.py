@@ -22,6 +22,8 @@ GRID = "#e4e3df"
 # Categorical slots in fixed order: blue, orange, aqua, yellow, magenta, green, violet, red.
 SERIES = ("#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948")
 NEUTRAL_FILL = "#f0efec"
+# Diverging pair: blue <-> red with a neutral grey midpoint (never a hue at the midpoint).
+DIVERGING = ("#2a78d6", NEUTRAL_FILL, "#e34948")
 FIGURES_DIR = Path("reports/figures")
 
 
@@ -55,6 +57,11 @@ def apply_style() -> None:
             "axes.prop_cycle": mpl.cycler(color=list(SERIES)),
         }
     )
+
+
+def diverging_cmap() -> mpl.colors.LinearSegmentedColormap:
+    """Blue-grey-red colormap for signed quantities centred on zero."""
+    return mpl.colors.LinearSegmentedColormap.from_list("blue_grey_red", list(DIVERGING))
 
 
 def mark_synthetic(ax: Axes, text: str = "SYNTHETIC DATA", corner: str = "upper right") -> None:

@@ -58,7 +58,8 @@ level (inventory / working volume), contiguous over [0, 1], factor in (0, 1].
 ## Phases
 
 1. Scaffold (done) 2. Data (done) 3. One-factor price model (done) 4. Intrinsic (LP, DP, rolling intrinsic) (done)
-5. LSMC (core) 6. Risk + results-first README 7. Extensions (only on request): Schwartz-Smith,
+5. LSMC (core) (done)
+6. Risk + results-first README 7. Extensions (only on request): Schwartz-Smith,
 Andersen-Broadie dual upper bound, AGSI comparison, Streamlit app.
 
 ## Key model facts
@@ -93,3 +94,10 @@ Andersen-Broadie dual upper bound, AGSI comparison, Streamlit app.
   The grid DP (`storage/dp.py`, `best_moves`) is the shared engine for intrinsic, rolling intrinsic
   and LSMC. With tier ratchets the DP converges to the MILP from below, error O(grid step).
 - HiGHS prints a banner once per process; it cannot be silenced through cvxpy (`output_flag` ignored).
+- LSMC (Phase 5): Longstaff-Schwartz style (realised values propagated backwards), one regression per
+  grid level on polynomials of z = X / sqrt(V(0,t)) (degree 3); independent regression / valuation
+  seeds (enforced). Out-of-sample value = lower bound. Backward pass uses `GridMoves` (path-independent
+  action set, bit-identical to `best_moves`): 10k + 10k weekly paths in ~25 s. Grid size is the
+  dominant numerical error (O(grid step), ~2 % at 101 levels); state it with results.
+- Headline (weekly, G=101, 10k+10k): market 4.90 MEUR (SE 0.06), all extrinsic; contango 7.98 MEUR,
+  intrinsic 6.43 on the same grid. Notebook 04 takes ~12 min to execute (convergence studies).
