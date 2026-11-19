@@ -59,7 +59,8 @@ level (inventory / working volume), contiguous over [0, 1], factor in (0, 1].
 
 1. Scaffold (done) 2. Data (done) 3. One-factor price model (done) 4. Intrinsic (LP, DP, rolling intrinsic) (done)
 5. LSMC (core) (done)
-6. Risk + results-first README 7. Extensions (only on request): Schwartz-Smith,
+6. Risk + results-first README (done)
+7. Extensions (only on request): Schwartz-Smith,
 Andersen-Broadie dual upper bound, AGSI comparison, Streamlit app.
 
 ## Key model facts
@@ -101,3 +102,11 @@ Andersen-Broadie dual upper bound, AGSI comparison, Streamlit app.
   dominant numerical error (O(grid step), ~2 % at 101 levels); state it with results.
 - Headline (weekly, G=101, 10k+10k): market 4.90 MEUR (SE 0.06), all extrinsic; contango 7.98 MEUR,
   intrinsic 6.43 on the same grid. Notebook 04 takes ~12 min to execute (convergence studies).
+- Risk (Phase 6): greeks = full LSMC re-runs with CRN (same seeds); bump 1 % per month, 0.5 EUR parallel,
+  +-0.05 sigma, +-0.5 kappa. With sigma = 0 bumps must not cross a schedule change (kinks).
+  Delta hedge ratio = envelope theorem, regressed on (X, inventory) over fit paths independent of the
+  test paths; monthly forwards stop at the first decision date of their month.
+- Tests needing the EEX CSV call `tests.conftest.skip_without_market_data()` so CI (no data) skips them.
+- CLI: `gasstorage.cli.main`, wrapped by `scripts/run_valuation.py`. README numbers come from
+  notebooks 04 (valuation, 10k+10k) and 05 (greeks / hedge, 5k+5k); keep them in sync if rerun.
+- Open: GitHub URL of the companion repo `deep-hedging-transaction-costs` (README cites it by name).

@@ -18,6 +18,7 @@ from gasstorage.storage.dp import solve_dp
 from gasstorage.storage.intrinsic import solve_lp
 from gasstorage.storage.rolling_intrinsic import rolling_intrinsic
 from gasstorage.timegrid import decision_grid
+from tests.conftest import skip_without_market_data
 
 FLAT = (RatchetTier(0.0, 1.0, 1.0),)
 
@@ -177,6 +178,7 @@ def test_dp_ends_at_terminal_inventory(contango) -> None:
 
 
 def test_backwardated_market_curve_has_zero_intrinsic_value() -> None:
+    skip_without_market_data()
     _, inp = _inputs("configs/storage_default.yaml")
     assert np.all(np.diff(inp.prices) <= 0)
     res = solve_lp(inp.contract, inp.prices, inp.days, inp.discount, ratchets=True)
@@ -239,6 +241,7 @@ def test_rolling_intrinsic_is_at_least_intrinsic(contango) -> None:
 
 
 def test_build_inputs_uses_forward_curve_and_discounting() -> None:
+    skip_without_market_data()
     cfg, inp = _inputs("configs/storage_default.yaml")
     curve = ForwardCurve.from_config(
         cfg.market.forward_curve, cfg.contract.start_date, cfg.contract.end_date

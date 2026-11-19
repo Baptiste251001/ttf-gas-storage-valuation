@@ -58,6 +58,27 @@ from gasstorage.storage.dp import (
 
 
 @dataclass(frozen=True)
+class Policy:
+    """Exercise policy estimated by the backward pass: continuation coefficients per step/level."""
+
+    betas: np.ndarray
+    levels: np.ndarray
+    basis: str
+    degree: int
+
+
+@dataclass(frozen=True)
+class PolicyPaths:
+    """A policy applied along given paths. ``cash[k]`` is the discounted cash flow of step k."""
+
+    total: np.ndarray
+    cash: np.ndarray
+    moves: np.ndarray
+    inventory: np.ndarray
+    spot: np.ndarray
+
+
+@dataclass(frozen=True)
 class LSMCResult:
     """LSMC estimate (out-of-sample lower bound) with diagnostics."""
 
@@ -67,12 +88,26 @@ class LSMCResult:
     path_values: np.ndarray
     inventory: np.ndarray
     moves: np.ndarray
+    cash: np.ndarray
     spot: np.ndarray
     x: np.ndarray
-    betas: np.ndarray
-    levels: np.ndarray
-    basis: str
-    degree: int
+    policy: Policy
+
+    @property
+    def betas(self) -> np.ndarray:
+        return self.policy.betas
+
+    @property
+    def levels(self) -> np.ndarray:
+        return self.policy.levels
+
+    @property
+    def basis(self) -> str:
+        return self.policy.basis
+
+    @property
+    def degree(self) -> int:
+        return self.policy.degree
 
 
 def _chunks(n: int, size: int):
@@ -127,41 +162,51 @@ def lsmc_value(
     )
 
     # ---- forward pass on independent valuation paths --------------------------------------
+    policy = Policy(betas=betas, levels=levels, basis=basis, degree=degree)
     x_val = model.simulate_x(inp.times, n_paths_valuation, rng_valuation)
-    s_val = model.spot(x_val, inp.times, inp.prices)
-    v = np.full((n_paths_valuation, 1), contract.initial_inventory)
-    inventory = np.empty((k_steps + 1, n_paths_valuation))
-    moves = np.empty((k_steps, n_paths_valuation))
-    total = np.zeros(n_paths_valuation)
-    inventory[0] = v[:, 0]
-    for k in range(k_steps):
-        fitted = basis_at(x_val[k], k) @ betas[k]
-        _, dv, cash = best_moves(
-            contract, v, s_val[k], inp.discount[k], inp.days[k], fitted, search
-        )
-        total += cash[:, 0]
-        moves[k] = dv[:, 0]
-        v = v + dv
-        inventory[k + 1] = v[:, 0]
-    if contract.terminal_penalty is not None:
-        total -= (
-            d_end * contract.terminal_penalty * np.abs(inventory[-1] - contract.terminal_inventory)
-        )
+    paths = simulate_policy(policy, inp, model, x_val)
+    total = paths.total
     se = float(total.std(ddof=1) / np.sqrt(n_paths_valuation)) if n_paths_valuation > 1 else np.nan
     return LSMCResult(
         value=float(total.mean()),
         se=se,
         in_sample_value=in_sample,
         path_values=total,
-        inventory=inventory,
-        moves=moves,
-        spot=s_val,
+        inventory=paths.inventory,
+        moves=paths.moves,
+        cash=paths.cash,
+        spot=paths.spot,
         x=x_val,
-        betas=betas,
-        levels=levels,
-        basis=basis,
-        degree=degree,
+        policy=policy,
     )
+
+
+def simulate_policy(
+    policy: Policy, inp: ValuationInputs, model: OneFactorModel, x: np.ndarray
+) -> PolicyPaths:
+    """Apply ``policy`` from the initial inventory along model states ``x`` (shape ``(K, P)``)."""
+    contract = inp.contract
+    k_steps, n_paths = x.shape
+    spot = model.spot(x, inp.times, inp.prices)
+    search = MoveSearch.build(contract, policy.levels, float(np.max(inp.days)))
+    v = np.full((n_paths, 1), contract.initial_inventory)
+    inventory = np.empty((k_steps + 1, n_paths))
+    moves = np.empty((k_steps, n_paths))
+    cash = np.empty((k_steps, n_paths))
+    inventory[0] = v[:, 0]
+    for k in range(k_steps):
+        phi = state_basis(x[k], model, float(inp.times[k]), policy.basis, policy.degree)
+        fitted = phi @ policy.betas[k]
+        _, dv, cf = best_moves(contract, v, spot[k], inp.discount[k], inp.days[k], fitted, search)
+        cash[k], moves[k] = cf[:, 0], dv[:, 0]
+        v = v + dv
+        inventory[k + 1] = v[:, 0]
+    total = cash.sum(axis=0)
+    if contract.terminal_penalty is not None:
+        total = total - float(inp.discount[-1]) * contract.terminal_penalty * np.abs(
+            inventory[-1] - contract.terminal_inventory
+        )
+    return PolicyPaths(total=total, cash=cash, moves=moves, inventory=inventory, spot=spot)
 
 
 def policy_map(

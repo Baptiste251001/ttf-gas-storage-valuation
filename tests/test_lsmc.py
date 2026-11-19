@@ -14,6 +14,7 @@ from gasstorage.storage.basis import laguerre_basis, polynomial_basis, state_bas
 from gasstorage.storage.contract import build_inputs
 from gasstorage.storage.dp import solve_dp
 from gasstorage.storage.lsmc import lsmc_value
+from tests.conftest import skip_without_market_data
 
 # --- basis ----------------------------------------------------------------------------------
 
@@ -55,6 +56,7 @@ def contango():
 
 @pytest.fixture(scope="module")
 def market():
+    skip_without_market_data()
     cfg = load_config("configs/storage_default.yaml")
     return cfg, build_inputs(cfg, "weekly")
 
