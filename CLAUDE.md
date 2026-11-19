@@ -20,6 +20,8 @@ greeks and delta hedging. Target audience: energy trading desks (quant / analyst
    no Python loop over paths. No business logic in notebooks: they import `gasstorage`.
 6. **TDD**: write the failing test first, watch it fail, then implement.
 7. Contract parameters are **illustrative**, not a real site.
+8. **Commits**: conventional messages, **no `Co-Authored-By: Claude` trailer** or any Claude
+   attribution (history was rewritten to remove them). Do not care about GitHub CI status.
 
 ## Environment
 
@@ -60,7 +62,7 @@ level (inventory / working volume), contiguous over [0, 1], factor in (0, 1].
 1. Scaffold (done) 2. Data (done) 3. One-factor price model (done) 4. Intrinsic (LP, DP, rolling intrinsic) (done)
 5. LSMC (core) (done)
 6. Risk + results-first README (done)
-7. Extensions (only on request): Schwartz-Smith,
+7. Extensions (done, Streamlit excluded by the user): Schwartz-Smith,
 Andersen-Broadie dual upper bound, AGSI comparison, Streamlit app.
 
 ## Key model facts
@@ -111,3 +113,11 @@ Andersen-Broadie dual upper bound, AGSI comparison, Streamlit app.
   notebooks 04 (valuation, 10k+10k) and 05 (greeks / hedge, 5k+5k); keep them in sync if rerun.
 - GitHub: https://github.com/Baptiste251001/ttf-gas-storage-valuation (public). Companion repo:
   https://github.com/Baptiste251001/deep-hedging-transaction-costs. Push only when the user asks.
+- Phase 7 results: futures vol term structure (3 Yahoo NYMEX contracts) gives kappa_Q = 0.33 +- 0.02
+  vs kappa_P = 4.78; Schwartz-Smith fit kappa 0.46, sigma_chi 0.74, sigma_xi 0.27, rho -0.31 (weak).
+  Under Q the market-case value collapses: LSMC -0.13, RI 0.04, dual upper bound 0.16 MEUR (vs 4.90 under P).
+  Dual gap under P: 1.5-2.7 %. Engines take any model with the `models.base.PriceModel` interface; the
+  2F model with sigma_xi = 0 reproduces 1F bit for bit (same op order, vander powers). Dual bound only
+  for 1F + polynomial basis + grid-restricted moves (`moves="grid"`); grid step must be <= smallest
+  ratcheted move (use >= 101 levels).
+- Open choice for the user: README headline (P value 4.90) vs risk-neutral range (0-0.3 MEUR).

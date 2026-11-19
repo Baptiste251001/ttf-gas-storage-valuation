@@ -105,3 +105,24 @@ class OneFactorModel:
             np.exp(-self.kappa * (T - t)) * x_t + 0.5 * self.variance(t, T) - 0.5 * self.variance(T)
         )
         return np.asarray(fwd0_T, dtype=float) * np.exp(exponent)
+
+    # -- common model interface used by the valuation engine ----------------------------------
+
+    def simulate_state(
+        self, times: ArrayLike, n_paths: int, rng: np.random.Generator
+    ) -> np.ndarray:
+        """Model state for the valuation engine: here $X$, shape ``(K, P)``."""
+        return self.simulate_x(times, n_paths, rng)
+
+    def forward_curve(
+        self, state_t: np.ndarray, t: float, T: np.ndarray, fwd0: np.ndarray
+    ) -> np.ndarray:
+        """Forwards $F(t, T_j)$ for each path; ``state_t`` ``(P,)``, returns ``(P, len(T))``."""
+        T = np.asarray(T, dtype=float)
+        return self.forward(state_t[:, None], t, T[None, :], np.asarray(fwd0, dtype=float)[None, :])
+
+    def basis(self, state_k: np.ndarray, t: float, name: str, degree: int) -> np.ndarray:
+        """Regression basis of the state (see :mod:`gasstorage.storage.basis`)."""
+        from gasstorage.storage.basis import state_basis
+
+        return state_basis(state_k, self, t, name, degree)

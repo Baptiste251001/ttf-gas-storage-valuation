@@ -87,3 +87,51 @@ def get_ttf_history(
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     series.rename_axis("date").to_frame().to_csv(cache_path, date_format="%Y-%m-%d")
     return series
+
+
+# --- individual monthly contracts --------------------------------------------------------------
+
+MONTH_CODES = "FGHJKMNQUVXZ"
+DEFAULT_CONTRACTS_CACHE = Path("data/raw/ttf_contracts.csv")
+
+
+def contract_ticker(month: pd.Period) -> str:
+    """Yahoo symbol of the NYMEX TTF monthly future delivering in ``month`` (e.g. TTFF27.NYM).
+
+    Yahoo only serves contracts that are listed at download time (on 2026-11-19: Dec-26 to
+    Feb-27), each with its full price history.
+    """
+    return f"TTF{MONTH_CODES[month.month - 1]}{month.year % 100:02d}.NYM"
+
+
+def download_contracts(
+    months: list[pd.Period], start: dt.date = dt.date(2023, 1, 1)
+) -> pd.DataFrame:
+    """Daily closes of individual TTF monthly futures (columns ``YYYY-MM``), via yfinance."""
+    import yfinance as yf
+
+    closes = {}
+    for m in months:
+        ticker = contract_ticker(m)
+        frame = yf.download(ticker, start=start.isoformat(), progress=False, auto_adjust=False)
+        if frame is None or frame.empty:
+            continue
+        closes[str(m)] = close_from_yfinance(frame, ticker)
+    if not closes:
+        raise RuntimeError("yfinance returned no TTF contract data")
+    out = pd.DataFrame(closes)
+    out.index.name = "date"
+    return out
+
+
+def get_contract_history(
+    months: list[pd.Period], cache_path: str | Path = DEFAULT_CONTRACTS_CACHE, refresh: bool = False
+) -> pd.DataFrame:
+    """Cached contract closes; downloads and caches them if missing or ``refresh``."""
+    cache_path = Path(cache_path)
+    if cache_path.exists() and not refresh:
+        return pd.read_csv(cache_path, index_col="date", parse_dates=["date"])
+    out = download_contracts(months)
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    out.to_csv(cache_path, date_format="%Y-%m-%d")
+    return out

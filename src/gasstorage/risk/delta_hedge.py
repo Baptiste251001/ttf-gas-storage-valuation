@@ -38,7 +38,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from gasstorage.models.one_factor import OneFactorModel
+from gasstorage.models.base import PriceModel
 from gasstorage.storage.basis import polynomial_basis
 from gasstorage.storage.contract import ValuationInputs
 from gasstorage.storage.lsmc import Policy, simulate_policy
@@ -88,14 +88,14 @@ def _hedge_dates(inp: ValuationInputs, rebalance: str) -> pd.DatetimeIndex:
     return pd.DatetimeIndex([pd.Timestamp(inp.valuation_date)]).append(pre).append(during)
 
 
-def _tensor_basis(z: np.ndarray, u: np.ndarray, deg_z: int, deg_u: int) -> np.ndarray:
-    bz, bu = polynomial_basis(z, deg_z), polynomial_basis(u, deg_u)
-    return (bz[:, :, None] * bu[:, None, :]).reshape(len(z), -1)
+def _tensor_basis(phi_state: np.ndarray, u: np.ndarray, deg_u: int) -> np.ndarray:
+    bu = polynomial_basis(u, deg_u)
+    return (phi_state[:, :, None] * bu[:, None, :]).reshape(len(u), -1)
 
 
 def delta_hedge(
     inp: ValuationInputs,
-    model: OneFactorModel,
+    model: PriceModel,
     policy: Policy,
     n_paths_fit: int,
     n_paths_test: int,
@@ -126,7 +126,7 @@ def delta_hedge(
     open_ = tau_h[:, None] < inp.times[first][None, :] - 1e-12
 
     def simulate(n: int, rng: np.random.Generator):
-        x_all = model.simulate_x(times_all, n, rng)
+        x_all = model.simulate_state(times_all, n, rng)
         paths = simulate_policy(policy, inp, model, x_all[idx_k])
         # inventory at each hedge date: initial before delivery, start-of-step inventory after
         k_of_h = np.searchsorted(inp.times, tau_h - 1e-12)
@@ -139,9 +139,7 @@ def delta_hedge(
         for j, (ih, t) in enumerate(zip(idx_h, tau_h, strict=True)):
             for i, (s, w) in enumerate(zip(steps, weights, strict=True)):
                 if open_[j, i] or (j > 0 and open_[j - 1, i]):
-                    f = model.forward(
-                        x_all[ih][:, None], t, inp.times[s][None, :], inp.prices[s][None, :]
-                    )
+                    f = model.forward_curve(x_all[ih], t, inp.times[s], inp.prices[s])
                     fwd[j, i] = f @ w
                 else:
                     fwd[j, i] = np.nan
@@ -150,13 +148,11 @@ def delta_hedge(
         exposure = np.stack(
             [(inp.discount[s][:, None] * net[s] * paths.spot[s]).sum(axis=0) for s in steps]
         )  # (months, n): sum_k D_k net_k S_k
-        z = np.stack(
-            [
-                x_all[ih] / np.sqrt(v) if (v := float(model.variance(t))) > 0 else np.zeros(n)
-                for ih, t in zip(idx_h, tau_h, strict=True)
-            ]
-        )
-        return paths, fwd, exposure, z, inv / contract.working_volume
+        phi_state = [
+            model.basis(x_all[ih], float(t), "polynomial", degree_z)
+            for ih, t in zip(idx_h, tau_h, strict=True)
+        ]
+        return paths, fwd, exposure, phi_state, inv / contract.working_volume
 
     _paths_f, fwd_f, expo_f, z_f, u_f = simulate(n_paths_fit, rng_fit)
     paths_t, fwd_t, _expo_t, z_t, u_t = simulate(n_paths_test, rng_test)
@@ -165,8 +161,8 @@ def delta_hedge(
     position = np.zeros((n_h, n_m, n_paths_test))
     initial = np.zeros(n_m)
     for j in range(n_h):
-        phi_f = _tensor_basis(z_f[j], u_f[j], degree_z, degree_v)
-        phi_t = _tensor_basis(z_t[j], u_t[j], degree_z, degree_v)
+        phi_f = _tensor_basis(z_f[j], u_f[j], degree_v)
+        phi_t = _tensor_basis(z_t[j], u_t[j], degree_v)
         for i in np.flatnonzero(open_[j]):
             target = expo_f[i] / fwd_f[j, i] / d_m[i]
             beta = np.linalg.lstsq(phi_f, target, rcond=None)[0]

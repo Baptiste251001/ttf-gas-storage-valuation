@@ -32,7 +32,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from gasstorage.models.one_factor import OneFactorModel
+from gasstorage.models.base import PriceModel
 from gasstorage.storage.contract import ValuationInputs
 from gasstorage.storage.dp import MoveSearch, backward_values, best_moves, volume_levels
 
@@ -56,7 +56,7 @@ def monthly_reoptimisation(dates) -> np.ndarray:
 
 def rolling_intrinsic(
     inp: ValuationInputs,
-    model: OneFactorModel,
+    model: PriceModel,
     n_paths: int,
     rng: np.random.Generator,
     n_levels: int = 51,
@@ -68,7 +68,7 @@ def rolling_intrinsic(
     mask = monthly_reoptimisation(inp.dates) if reoptimise is None else np.asarray(reoptimise)
     if not mask[0]:
         raise ValueError("the first decision date must be a re-optimisation date")
-    x = model.simulate_x(inp.times, n_paths, rng)
+    x = model.simulate_state(inp.times, n_paths, rng)
     spot = model.spot(x, inp.times, inp.prices)
     levels = volume_levels(contract, n_levels)
     search = MoveSearch.build(contract, levels, float(np.max(inp.days)))
@@ -82,9 +82,7 @@ def rolling_intrinsic(
     for k in range(k_steps):
         if mask[k]:
             plan_start = k
-            plan_prices = model.forward(
-                x[k][:, None], inp.times[k], inp.times[None, k:], inp.prices[None, k:]
-            )
+            plan_prices = model.forward_curve(x[k], inp.times[k], inp.times[k:], inp.prices[k:])
             plan_values = backward_values(
                 contract, plan_prices, inp.days[k:], inp.discount[k:], levels, d_end
             )

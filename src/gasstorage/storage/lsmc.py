@@ -44,8 +44,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from gasstorage.models.one_factor import OneFactorModel
-from gasstorage.storage.basis import state_basis
+from gasstorage.models.base import PriceModel
 from gasstorage.storage.contract import ValuationInputs
 from gasstorage.storage.dp import (
     MoveSearch,
@@ -65,6 +64,8 @@ class Policy:
     levels: np.ndarray
     basis: str
     degree: int
+    moves: str = "any"
+    value_betas: np.ndarray | None = None  # regression of V_k on phi(X_k), for the dual bound
 
 
 @dataclass(frozen=True)
@@ -90,7 +91,7 @@ class LSMCResult:
     moves: np.ndarray
     cash: np.ndarray
     spot: np.ndarray
-    x: np.ndarray
+    x: np.ndarray  # model state on the valuation paths
     policy: Policy
 
     @property
@@ -117,7 +118,7 @@ def _chunks(n: int, size: int):
 
 def lsmc_value(
     inp: ValuationInputs,
-    model: OneFactorModel,
+    model: PriceModel,
     n_paths_regression: int,
     n_paths_valuation: int,
     rng_regression: np.random.Generator,
@@ -126,6 +127,7 @@ def lsmc_value(
     basis: str = "polynomial",
     degree: int = 3,
     chunk: int = 2000,
+    moves: str = "any",
 ) -> LSMCResult:
     """Value the storage by LSMC with independent regression and valuation path sets."""
     if rng_regression.bit_generator.state == rng_valuation.bit_generator.state:
@@ -133,18 +135,23 @@ def lsmc_value(
     contract = inp.contract
     k_steps = len(inp.prices)
     levels = volume_levels(contract, n_levels)
-    search = MoveSearch.build(contract, levels, float(np.max(inp.days)))
+    if moves not in ("any", "grid"):
+        raise ValueError(f"unknown moves {moves!r}")
+    search = MoveSearch.build(contract, levels, float(np.max(inp.days)), extremes=moves == "any")
     d_end = float(inp.discount[-1])
 
     def basis_at(x_k: np.ndarray, k: int) -> np.ndarray:
-        return state_basis(x_k, model, float(inp.times[k]), basis, degree)
+        return model.basis(x_k, float(inp.times[k]), basis, degree)
 
     # ---- backward pass on regression paths ------------------------------------------------
-    x_reg = model.simulate_x(inp.times, n_paths_regression, rng_regression)
+    x_reg = model.simulate_state(inp.times, n_paths_regression, rng_regression)
     s_reg = model.spot(x_reg, inp.times, inp.prices)
     values = np.tile(terminal_values(contract, levels, d_end), (n_paths_regression, 1))
     grid_moves = grid_moves_by_days(contract, levels, inp.days, search)
-    betas = np.empty((k_steps, degree + 1, n_levels))
+    betas = np.empty((k_steps, basis_at(x_reg[0], 0).shape[1], n_levels))
+    value_betas = np.empty((k_steps + 1, betas.shape[1], n_levels))
+    value_betas[k_steps] = 0.0
+    value_betas[k_steps, 0] = values[0]  # deterministic terminal value (constant term)
     for k in range(k_steps - 1, -1, -1):
         phi = basis_at(x_reg[k], k)
         betas[k] = np.linalg.lstsq(phi, values, rcond=None)[0]
@@ -155,6 +162,7 @@ def lsmc_value(
             _, _, cash, choice = gm.best(s_reg[k, sl], inp.discount[k], fitted[sl])
             new_values[sl] = cash + gm.realised(values[sl], choice)
         values = new_values
+        value_betas[k] = np.linalg.lstsq(phi, values, rcond=None)[0]
     in_sample = float(
         interpolate(
             values, np.full((len(values), 1), contract.initial_inventory), search.delta
@@ -162,8 +170,10 @@ def lsmc_value(
     )
 
     # ---- forward pass on independent valuation paths --------------------------------------
-    policy = Policy(betas=betas, levels=levels, basis=basis, degree=degree)
-    x_val = model.simulate_x(inp.times, n_paths_valuation, rng_valuation)
+    policy = Policy(
+        betas=betas, levels=levels, basis=basis, degree=degree, moves=moves, value_betas=value_betas
+    )
+    x_val = model.simulate_state(inp.times, n_paths_valuation, rng_valuation)
     paths = simulate_policy(policy, inp, model, x_val)
     total = paths.total
     se = float(total.std(ddof=1) / np.sqrt(n_paths_valuation)) if n_paths_valuation > 1 else np.nan
@@ -182,20 +192,22 @@ def lsmc_value(
 
 
 def simulate_policy(
-    policy: Policy, inp: ValuationInputs, model: OneFactorModel, x: np.ndarray
+    policy: Policy, inp: ValuationInputs, model: PriceModel, x: np.ndarray
 ) -> PolicyPaths:
     """Apply ``policy`` from the initial inventory along model states ``x`` (shape ``(K, P)``)."""
     contract = inp.contract
-    k_steps, n_paths = x.shape
+    k_steps, n_paths = x.shape[:2]
     spot = model.spot(x, inp.times, inp.prices)
-    search = MoveSearch.build(contract, policy.levels, float(np.max(inp.days)))
+    search = MoveSearch.build(
+        contract, policy.levels, float(np.max(inp.days)), extremes=policy.moves == "any"
+    )
     v = np.full((n_paths, 1), contract.initial_inventory)
     inventory = np.empty((k_steps + 1, n_paths))
     moves = np.empty((k_steps, n_paths))
     cash = np.empty((k_steps, n_paths))
     inventory[0] = v[:, 0]
     for k in range(k_steps):
-        phi = state_basis(x[k], model, float(inp.times[k]), policy.basis, policy.degree)
+        phi = model.basis(x[k], float(inp.times[k]), policy.basis, policy.degree)
         fitted = phi @ policy.betas[k]
         _, dv, cf = best_moves(contract, v, spot[k], inp.discount[k], inp.days[k], fitted, search)
         cash[k], moves[k] = cf[:, 0], dv[:, 0]
@@ -212,7 +224,7 @@ def simulate_policy(
 def policy_map(
     result: LSMCResult,
     inp: ValuationInputs,
-    model: OneFactorModel,
+    model: PriceModel,
     k: int,
     x_values: np.ndarray,
     inventories: np.ndarray,
@@ -225,10 +237,12 @@ def policy_map(
     contract = inp.contract
     x_values = np.asarray(x_values, dtype=float)
     inventories = np.asarray(inventories, dtype=float)
-    phi = state_basis(x_values, model, float(inp.times[k]), result.basis, result.degree)
+    phi = model.basis(x_values, float(inp.times[k]), result.basis, result.degree)
     fitted = phi @ result.betas[k]
     spot = model.spot(x_values[None, :], [inp.times[k]], [inp.prices[k]])[0]
-    search = MoveSearch.build(contract, result.levels, float(np.max(inp.days)))
+    search = MoveSearch.build(
+        contract, result.levels, float(np.max(inp.days)), extremes=result.policy.moves == "any"
+    )
     v = np.broadcast_to(inventories, (len(x_values), len(inventories)))
     _, dv, _ = best_moves(contract, v, spot, inp.discount[k], inp.days[k], fitted, search)
     return dv

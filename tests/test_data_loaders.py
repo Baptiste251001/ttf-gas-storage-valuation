@@ -243,3 +243,53 @@ def test_storage_year_assignment(day: str, year: int, day_index: int) -> None:
     out = agsi.add_storage_year(df)
     assert out.iloc[0]["storage_year"] == year
     assert out.iloc[0]["day_of_storage_year"] == day_index
+
+
+def test_fill_profile_gives_quantiles_by_day_of_storage_year() -> None:
+    df = agsi.add_storage_year(
+        pd.DataFrame(
+            {
+                "gas_day": pd.to_datetime(["2022-04-01", "2023-04-01", "2022-04-02", "2023-04-02"]),
+                "country": ["DE"] * 4,
+                "full_pct": [10.0, 30.0, 12.0, 32.0],
+            }
+        )
+    )
+    prof = agsi.fill_profile(df, "DE", quantiles=(0.0, 0.5, 1.0))
+    assert list(prof.index) == [0, 1]
+    assert prof.loc[0, 0.5] == pytest.approx(20.0)
+    assert prof.loc[1, 0.0] == pytest.approx(12.0)
+    assert prof.loc[1, 1.0] == pytest.approx(32.0)
+    only_2023 = agsi.fill_profile(df, "DE", years=[2023], quantiles=(0.5,))
+    assert only_2023.loc[0, 0.5] == pytest.approx(30.0)
+
+
+def test_aggregate_fill_is_weighted_by_working_gas_volume() -> None:
+    df = pd.DataFrame(
+        {
+            "gas_day": pd.to_datetime(["2023-04-01", "2023-04-01"]),
+            "country": ["DE", "NL"],
+            "gas_in_storage_twh": [100.0, 20.0],
+            "working_gas_volume_twh": [200.0, 100.0],
+            "full_pct": [50.0, 20.0],
+        }
+    )
+    agg = agsi.aggregate_fill(df, ["DE", "NL"], name="DE+NL")
+    # (100 + 20) / (200 + 100) = 40 %, not the plain average 35 %
+    assert agg.loc[0, "full_pct"] == pytest.approx(40.0)
+    assert agg.loc[0, "country"] == "DE+NL"
+
+
+def test_fill_profile_drops_days_covered_by_too_few_years() -> None:
+    # day 365 exists only in leap storage years: with min_years=2 it is dropped
+    df = agsi.add_storage_year(
+        pd.DataFrame(
+            {
+                "gas_day": pd.to_datetime(["2022-04-01", "2023-04-01", "2024-03-31"]),
+                "country": ["DE"] * 3,
+                "full_pct": [10.0, 30.0, 55.0],
+            }
+        )
+    )
+    prof = agsi.fill_profile(df, "DE", quantiles=(0.5,), min_years=2)
+    assert list(prof.index) == [0]

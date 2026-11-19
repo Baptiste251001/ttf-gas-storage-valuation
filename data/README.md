@@ -7,6 +7,7 @@ Anything not listed here is **synthetic** and labelled as such in code and figur
 | Dataset | Module | Source | Access | Terms |
 |---|---|---|---|---|
 | TTF front-month history | `gasstorage.data.ttf` | Yahoo Finance, ticker `TTF=F` (via `yfinance`) | automatic, cached to `raw/ttf_front_month.csv` | Yahoo Finance terms of service: personal use, not redistributed (hence not committed) |
+| TTF individual monthly futures (Dec-26, Jan-27, Feb-27), daily closes since 2023 | `gasstorage.data.ttf` (`get_contract_history`) | Yahoo Finance, NYMEX symbols `TTF<month code><yy>.NYM` | automatic, cached to `raw/ttf_contracts.csv` | Yahoo Finance terms of service; not committed |
 | TTF forward curve (settlements of 2026-11-17) | `gasstorage.data.forward_curve` | EEX TTF Natural Gas Futures settlement prices | manual copy, `raw/eex_ttf_futures_settlements_2026-11-17.csv` | exchange data terms; not committed |
 | Aggregated storage levels NL / DE / FR | `gasstorage.data.agsi` | GIE AGSI+ API, https://agsi.gie.eu | free API key in env var `AGSI_API_KEY`, cached to `raw/agsi_<CC>.csv` | free reuse with mandatory attribution "Source: GIE AGSI+" (GIE API manual v007) |
 | Synthetic seasonal forward curve | `gasstorage.data.forward_curve` | generated from `market.forward_curve.synthetic` in `configs/*.yaml` | none | **SYNTHETIC**, not market data |
@@ -70,3 +71,10 @@ SYNTHETIC curve.
 
 Units: storage in TWh, flows in GWh/d, `full_pct` in % of working gas volume. The API is limited to
 60 calls per minute; the loader pauses between pages.
+
+## 4. Individual TTF monthly futures (automatic)
+
+Used for the futures volatility term structure (notebook 06). Yahoo serves only the contracts listed at download
+time, with their full history: on 2026-11-19 `TTFZ26.NYM`, `TTFF27.NYM` and `TTFG27.NYM` (from 2023-01-03). Their
+2026-11-17 closes match the EEX settlements within 0.05 EUR/MWh. Symbol convention: `TTF` + futures month code
+(F G H J K M N Q U V X Z) + two-digit year + `.NYM`, see `gasstorage.data.ttf.contract_ticker`.

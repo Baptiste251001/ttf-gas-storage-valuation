@@ -65,17 +65,26 @@ def interpolate(values: np.ndarray, targets: np.ndarray, delta: float) -> np.nda
 
 @dataclass(frozen=True)
 class MoveSearch:
-    """Precomputed band of grid offsets that covers every feasible move on the grid."""
+    """Precomputed band of grid offsets that covers every feasible move on the grid.
+
+    With ``extremes=True`` (default) the action set also contains the full-rate moves and holding,
+    which may leave the grid (continuation values are then interpolated). With ``extremes=False``
+    only moves to grid levels are allowed: the *grid-restricted problem*, whose states stay on the
+    grid, used for the dual upper bound.
+    """
 
     delta: float
     offsets: np.ndarray
+    extremes: bool = True
 
     @classmethod
-    def build(cls, contract: StorageContract, levels: np.ndarray, max_days: float) -> MoveSearch:
+    def build(
+        cls, contract: StorageContract, levels: np.ndarray, max_days: float, extremes: bool = True
+    ) -> MoveSearch:
         delta = float(levels[1] - levels[0])
         n_inj = math.ceil(contract.max_injection_per_day * max_days / delta) + 1
         n_wdr = math.ceil(contract.max_withdrawal_per_day * max_days / delta) + 1
-        return cls(delta=delta, offsets=np.arange(-n_wdr, n_inj + 1) * delta)
+        return cls(delta=delta, offsets=np.arange(-n_wdr, n_inj + 1) * delta, extremes=extremes)
 
 
 def best_moves(
@@ -97,15 +106,10 @@ def best_moves(
     inj = np.minimum(contract.max_injection(v, days), vol - v)
     wdr = np.minimum(contract.max_withdrawal(v, days), v)
     base = np.floor(v / search.delta + 1e-9) * search.delta
-    targets = np.concatenate(
-        [
-            base[..., None] + search.offsets,
-            (v + inj)[..., None],
-            (v - wdr)[..., None],
-            v[..., None],
-        ],
-        axis=-1,
-    )
+    parts = [base[..., None] + search.offsets]
+    if search.extremes:
+        parts += [(v + inj)[..., None], (v - wdr)[..., None], v[..., None]]
+    targets = np.concatenate(parts, axis=-1)
     dv = targets - v[..., None]
     feasible = (
         (dv <= inj[..., None] + tol)
@@ -149,10 +153,10 @@ class GridMoves:
         inj = np.minimum(contract.max_injection(v, days), vol - v)
         wdr = np.minimum(contract.max_withdrawal(v, days), v)
         base = np.floor(v / search.delta + 1e-9) * search.delta
-        targets = np.concatenate(
-            [base[:, None] + search.offsets, (v + inj)[:, None], (v - wdr)[:, None], v[:, None]],
-            axis=1,
-        )
+        parts = [base[:, None] + search.offsets]
+        if search.extremes:
+            parts += [(v + inj)[:, None], (v - wdr)[:, None], v[:, None]]
+        targets = np.concatenate(parts, axis=1)
         dv = targets - v[:, None]
         feasible = (
             (dv <= inj[:, None] + tol)

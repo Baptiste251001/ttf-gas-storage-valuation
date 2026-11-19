@@ -198,3 +198,38 @@ def add_storage_year(df: pd.DataFrame, date_col: str = "gas_day") -> pd.DataFram
     out["storage_year"] = year
     out["day_of_storage_year"] = (days - pd.DatetimeIndex(start)).days.to_numpy()
     return out
+
+
+def fill_profile(
+    levels: pd.DataFrame,
+    country: str,
+    years: list[int] | None = None,
+    quantiles: tuple[float, ...] = (0.05, 0.25, 0.5, 0.75, 0.95),
+    min_years: int = 1,
+) -> pd.DataFrame:
+    """Quantiles of the fill level (% of WGV) across storage years, by day of storage year.
+
+    ``levels`` must contain ``storage_year`` and ``day_of_storage_year`` (see
+    :func:`add_storage_year`). Days observed in fewer than ``min_years`` storage years (e.g. day
+    365, which only leap years have) are dropped. Columns are the requested quantiles.
+    """
+    sub = levels[levels["country"] == country]
+    if years is not None:
+        sub = sub[sub["storage_year"].isin(years)]
+    grouped = sub.groupby("day_of_storage_year")["full_pct"]
+    out = pd.DataFrame({q: grouped.quantile(q) for q in quantiles})
+    return out[grouped.count() >= min_years]
+
+
+def aggregate_fill(levels: pd.DataFrame, countries: list[str], name: str) -> pd.DataFrame:
+    """Aggregate several countries into one storage: fill = sum(storage) / sum(WGV), in %."""
+    sub = levels[levels["country"].isin(countries)]
+    daily = sub.groupby("gas_day")[["gas_in_storage_twh", "working_gas_volume_twh"]].sum()
+    out = pd.DataFrame(
+        {
+            "gas_day": daily.index,
+            "country": name,
+            "full_pct": 100.0 * daily["gas_in_storage_twh"] / daily["working_gas_volume_twh"],
+        }
+    ).reset_index(drop=True)
+    return out
