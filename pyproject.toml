@@ -15,6 +15,7 @@ dependencies = [
     "pandas>=2.1",
     "scipy>=1.11",
     "cvxpy>=1.4",
+    "highspy>=1.7",
     "pyyaml>=6.0",
     "matplotlib>=3.8",
 ]

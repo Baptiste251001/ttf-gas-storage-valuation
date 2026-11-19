@@ -57,7 +57,7 @@ level (inventory / working volume), contiguous over [0, 1], factor in (0, 1].
 
 ## Phases
 
-1. Scaffold (done) 2. Data (done) 3. One-factor price model (done) 4. Intrinsic (LP, DP, rolling intrinsic)
+1. Scaffold (done) 2. Data (done) 3. One-factor price model (done) 4. Intrinsic (LP, DP, rolling intrinsic) (done)
 5. LSMC (core) 6. Risk + results-first README 7. Extensions (only on request): Schwartz-Smith,
 Andersen-Broadie dual upper bound, AGSI comparison, Streamlit app.
 
@@ -88,3 +88,8 @@ Andersen-Broadie dual upper bound, AGSI comparison, Streamlit app.
 - AGSI+ key: only via the `AGSI_API_KEY` env var; data cached in `data/raw/agsi_<CC>.csv`.
 - Notebooks are executed with `jupyter nbconvert --to notebook --execute --inplace` and committed
   with outputs; figures go to `reports/figures/`.
+- Storage engine conventions (Phase 4): ratchets act on the start-of-step fill level; volumes of
+  step k trade at the price of its first day; hard terminal constraint in the DP = penalty 1e4 EUR/MWh.
+  The grid DP (`storage/dp.py`, `best_moves`) is the shared engine for intrinsic, rolling intrinsic
+  and LSMC. With tier ratchets the DP converges to the MILP from below, error O(grid step).
+- HiGHS prints a banner once per process; it cannot be silenced through cvxpy (`output_flag` ignored).
