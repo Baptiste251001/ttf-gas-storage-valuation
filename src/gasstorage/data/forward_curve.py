@@ -4,9 +4,18 @@ The curve is a vector of monthly delivery prices (EUR/MWh). Daily prices are obt
 piecewise-constant interpolation: every gas day $t$ in delivery month $m(t)$ gets
 $F(0, t) = F_{m(t)}$, consistent with a month contract delivering a flat daily volume.
 
-Two sources are supported:
+Sources:
 
-* **CSV** (``delivery_month, price``): settlement prices typed by hand from ICE Endex or EEX.
+* **Exchange settlement table** (``contract, settlement_eur_mwh``) as published by EEX or ICE
+  Endex, with contract labels ``Apr-27``, ``Q2-27``, ``SUMMER-27``, ``WINTER-27``, ``CAL-28``.
+  Month contracts build the curve; quarter / season / calendar strips are used as a consistency
+  check, since a strip price must equal the day-weighted average of its months:
+
+  .. math::
+     F_{	ext{strip}} = rac{\sum_{m \in 	ext{strip}} d_m F_m}{\sum_{m \in 	ext{strip}} d_m},
+     \qquad d_m = 	ext{number of days in month } m.
+
+* **Monthly CSV** (``delivery_month, price``), e.g. derived from such a table.
 * **Synthetic**: a stylised curve, clearly labelled as such, for development and tests:
 
   .. math::
@@ -28,6 +37,74 @@ import pandas as pd
 from gasstorage.config import ForwardCurveConfig, SyntheticCurveConfig
 
 CSV_COLUMNS = ("delivery_month", "price")
+SETTLEMENT_COLUMNS = ("contract", "settlement_eur_mwh")
+_MONTHS = ("JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC")
+
+
+def parse_contract(label: str) -> tuple[pd.Period, pd.Period]:
+    """First and last delivery month of an exchange contract label.
+
+    ``Apr-27`` (month), ``Q2-27`` (quarter), ``SUMMER-27`` (Apr-Sep 2027), ``WINTER-27``
+    (Oct 2027 - Mar 2028, gas season convention), ``CAL-28`` (Jan-Dec 2028).
+    """
+    try:
+        head, yy = label.strip().upper().rsplit("-", 1)
+        year = 2000 + int(yy)
+    except ValueError:
+        raise ValueError(f"unknown contract label {label!r}") from None
+
+    def month(y: int, m: int) -> pd.Period:
+        return pd.Period(year=y, month=m, freq="M")
+
+    if head in _MONTHS:
+        m = month(year, _MONTHS.index(head) + 1)
+        return m, m
+    if len(head) == 2 and head[0] == "Q" and head[1] in "1234":
+        q = int(head[1])
+        return month(year, 3 * q - 2), month(year, 3 * q)
+    if head == "SUMMER":
+        return month(year, 4), month(year, 9)
+    if head == "WINTER":
+        return month(year, 10), month(year + 1, 3)
+    if head == "CAL":
+        return month(year, 1), month(year, 12)
+    raise ValueError(f"unknown contract label {label!r}")
+
+
+def load_settlements(source: str | Path | pd.DataFrame) -> pd.DataFrame:
+    """Load an exchange settlement table and add ``first_month``, ``last_month``, ``n_months``."""
+    df = source.copy() if isinstance(source, pd.DataFrame) else pd.read_csv(source)
+    if not set(SETTLEMENT_COLUMNS).issubset(df.columns):
+        raise ValueError(f"expected columns {SETTLEMENT_COLUMNS}, got {list(df.columns)}")
+    periods = [parse_contract(c) for c in df["contract"]]
+    df["first_month"] = [p[0] for p in periods]
+    df["last_month"] = [p[1] for p in periods]
+    df["n_months"] = [(b - a).n + 1 for a, b in periods]
+    df["settlement_eur_mwh"] = df["settlement_eur_mwh"].astype(float)
+    return df
+
+
+def strip_consistency(curve: ForwardCurve, table: pd.DataFrame) -> pd.DataFrame:
+    """Compare multi-month strip settlements with the day-weighted average of the month curve.
+
+    Only strips whose months are all on the curve are reported.
+    """
+    rows = []
+    for rec in table[table["n_months"] > 1].itertuples(index=False):
+        if rec.first_month < curve.months[0] or rec.last_month > curve.months[-1]:
+            continue
+        implied = curve.strip_price(rec.first_month, rec.last_month)
+        rows.append(
+            {
+                "contract": rec.contract,
+                "settlement_eur_mwh": rec.settlement_eur_mwh,
+                "implied_eur_mwh": implied,
+                "diff_eur_mwh": rec.settlement_eur_mwh - implied,
+            }
+        )
+    return pd.DataFrame(
+        rows, columns=["contract", "settlement_eur_mwh", "implied_eur_mwh", "diff_eur_mwh"]
+    )
 
 
 def _validate(months: pd.PeriodIndex, prices: np.ndarray) -> None:
@@ -79,6 +156,14 @@ class ForwardCurve:
         return cls(months[order], prices[order], source=str(path), is_synthetic=False)
 
     @classmethod
+    def from_settlements(cls, table: pd.DataFrame, source: str) -> ForwardCurve:
+        """Build the curve from the month contracts of a :func:`load_settlements` table."""
+        months_only = table[table["n_months"] == 1].sort_values("first_month")
+        months = pd.PeriodIndex(months_only["first_month"].tolist(), freq="M")
+        prices = months_only["settlement_eur_mwh"].to_numpy(dtype=float)
+        return cls(months, prices, source=source, is_synthetic=False)
+
+    @classmethod
     def synthetic(
         cls, start: pd.Period, n_months: int, params: SyntheticCurveConfig
     ) -> ForwardCurve:
@@ -108,7 +193,12 @@ class ForwardCurve:
             n = (last - first).n + 1
             return cls.synthetic(first, n, cfg.synthetic)
         assert cfg.csv_path is not None  # guaranteed by ForwardCurveConfig validation
-        curve = cls.from_csv(cfg.csv_path)
+        columns = pd.read_csv(cfg.csv_path, nrows=0).columns
+        if set(SETTLEMENT_COLUMNS).issubset(columns):
+            table = load_settlements(cfg.csv_path)
+            curve = cls.from_settlements(table, source=f"exchange settlements: {cfg.csv_path}")
+        else:
+            curve = cls.from_csv(cfg.csv_path)
         if curve.months[0] > first or curve.months[-1] < last:
             raise ValueError(
                 f"{cfg.csv_path}: curve {curve.months[0]}..{curve.months[-1]} does not cover "
@@ -124,6 +214,14 @@ class ForwardCurve:
         if np.any(idx < 0) or np.any(idx >= len(self.months)):
             raise ValueError(f"dates outside the curve range {self.months[0]}..{self.months[-1]}")
         return self.prices[idx]
+
+    def strip_price(self, first: pd.Period, last: pd.Period) -> float:
+        """Day-weighted average price of the delivery months ``first..last`` (inclusive)."""
+        mask = (self.months >= first) & (self.months <= last)
+        if mask.sum() != (last - first).n + 1:
+            raise ValueError(f"strip {first}..{last} is not fully covered by the curve")
+        days = self.months[mask].days_in_month.to_numpy(dtype=float)
+        return float(np.dot(days, self.prices[mask]) / days.sum())
 
     def to_frame(self) -> pd.DataFrame:
         """Curve as a DataFrame with the CSV column names."""

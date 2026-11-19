@@ -7,7 +7,7 @@ Anything not listed here is **synthetic** and labelled as such in code and figur
 | Dataset | Module | Source | Access | Terms |
 |---|---|---|---|---|
 | TTF front-month history | `gasstorage.data.ttf` | Yahoo Finance, ticker `TTF=F` (via `yfinance`) | automatic, cached to `raw/ttf_front_month.csv` | Yahoo Finance terms of service: personal use, not redistributed (hence not committed) |
-| TTF forward curve (monthly settlements) | `gasstorage.data.forward_curve` | ICE Endex Dutch TTF Gas Futures or EEX TTF futures settlement prices | manual CSV `raw/ttf_forward_curve.csv` | exchange data terms; typed by hand, not committed |
+| TTF forward curve (settlements of 2026-11-17) | `gasstorage.data.forward_curve` | EEX TTF Natural Gas Futures settlement prices | manual copy, `raw/eex_ttf_futures_settlements_2026-11-17.csv` | exchange data terms; not committed |
 | Aggregated storage levels NL / DE / FR | `gasstorage.data.agsi` | GIE AGSI+ API, https://agsi.gie.eu | free API key in env var `AGSI_API_KEY`, cached to `raw/agsi_<CC>.csv` | free reuse with mandatory attribution "Source: GIE AGSI+" (GIE API manual v007) |
 | Synthetic seasonal forward curve | `gasstorage.data.forward_curve` | generated from `market.forward_curve.synthetic` in `configs/*.yaml` | none | **SYNTHETIC**, not market data |
 
@@ -31,18 +31,32 @@ date,price_eur_mwh
 
 ## 2. Forward curve (manual)
 
-There is no free, complete source of the monthly TTF curve. To value on a real curve:
+There is no free, complete download of the monthly TTF curve; settlements are copied from the EEX
+market data page (https://www.eex.com/en/market-data/natural-gas/futures, TTF, last 45 days shown).
 
-1. Copy `data/templates/ttf_forward_curve_template.csv` to `data/raw/ttf_forward_curve.csv`.
-2. Fill the `price` column (EUR/MWh) with the **settlement prices of the monthly contracts** for every
-   delivery month of the storage year, all from the **same trading day**, from the ICE Endex
-   "Dutch TTF Natural Gas Futures" settlement page or the EEX TTF futures page.
-3. In the config, set `market.forward_curve.source: csv`, `csv_path: data/raw/ttf_forward_curve.csv`,
-   `market.valuation_date` to that trading day, and the contract dates to the storage year.
+**Curve used in this project:** EEX TTF Natural Gas Futures settlement prices of **2026-11-17**, all
+listed contracts (months Jan-27 to Nov-28, quarters, seasons, calendars), stored unmodified as
+`data/raw/eex_ttf_futures_settlements_2026-11-17.csv`:
 
-Format: `delivery_month` as `YYYY-MM`, months contiguous, one row each, prices positive. The loader
-rejects gaps, duplicates and missing prices. If only quarter / season contracts are quoted for the
-far months, enter the quarter or season price for each month it covers and say so in the analysis.
+```
+contract,volume_mwh,open_interest_lots,settlement_eur_mwh
+Apr-27,7920,3040,71.221
+Q2-27,960960,7529,67.702
+...
+```
+
+Month contracts build the curve. Quarter / season / calendar strips are checked against the
+day-weighted average of their months (`strip_consistency`): on 2026-11-17 all covered strips agree
+within 0.0014 EUR/MWh. `configs/storage_default.yaml` points to this file and sets
+`valuation_date: 2026-11-17`.
+
+To use another trading day, save the EEX (or ICE Endex) table in the same format, all prices from the
+**same session**, and update `csv_path` and `valuation_date`. A plain monthly CSV
+(`delivery_month,price`, see `data/templates/ttf_forward_curve_template.csv`) is also accepted.
+The loader rejects gaps, duplicates and missing prices.
+
+**Without market data** (fresh clone): use `configs/storage_synthetic.yaml`, identical contract on the
+SYNTHETIC curve.
 
 ## 3. GIE AGSI+ storage levels
 

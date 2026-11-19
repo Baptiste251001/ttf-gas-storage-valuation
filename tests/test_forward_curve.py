@@ -10,7 +10,12 @@ import pandas as pd
 import pytest
 
 from gasstorage.config import ForwardCurveConfig, SyntheticCurveConfig
-from gasstorage.data.forward_curve import ForwardCurve
+from gasstorage.data.forward_curve import (
+    ForwardCurve,
+    load_settlements,
+    parse_contract,
+    strip_consistency,
+)
 
 SYN = SyntheticCurveConfig(
     base_level_eur_mwh=30.0, winter_premium_eur_mwh=5.0, contango_eur_mwh_per_year=1.0
@@ -136,3 +141,86 @@ def test_from_config_csv_must_cover_contract_period(tmp_path: Path) -> None:
     cfg = ForwardCurveConfig(source="csv", csv_path=path, synthetic=SYN)
     with pytest.raises(ValueError, match="cover"):
         ForwardCurve.from_config(cfg, dt.date(2026, 4, 1), dt.date(2027, 3, 31))
+
+
+# --- exchange settlement tables (EEX / ICE Endex contract labels) ---------------------------
+
+# Values below are EEX TTF futures settlements of 2026-11-17 (EUR/MWh), as provided by the user.
+EEX_ROWS = [
+    ("Apr-27", 71.221),
+    ("May-27", 66.937),
+    ("Jun-27", 64.975),
+    ("Q2-27", 67.702),
+    ("Jan-28", 57.770),
+    ("Feb-28", 55.862),
+    ("Mar-28", 54.259),
+    ("CAL-28", 40.605),
+]
+
+
+def _write_settlements(path: Path, rows: list[tuple[str, float]]) -> Path:
+    pd.DataFrame(rows, columns=["contract", "settlement_eur_mwh"]).to_csv(path, index=False)
+    return path
+
+
+@pytest.mark.parametrize(
+    ("label", "first", "last"),
+    [
+        ("Apr-27", "2027-04", "2027-04"),
+        ("Q2-27", "2027-04", "2027-06"),
+        ("Q1-28", "2028-01", "2028-03"),
+        ("SUMMER-27", "2027-04", "2027-09"),
+        ("WINTER-27", "2027-10", "2028-03"),
+        ("CAL-28", "2028-01", "2028-12"),
+    ],
+)
+def test_contract_labels_map_to_delivery_months(label: str, first: str, last: str) -> None:
+    assert parse_contract(label) == (pd.Period(first, "M"), pd.Period(last, "M"))
+
+
+def test_unknown_contract_label_raises() -> None:
+    with pytest.raises(ValueError, match="BOM"):
+        parse_contract("BOM")
+
+
+def test_curve_from_settlements_uses_only_month_contracts(tmp_path: Path) -> None:
+    table = load_settlements(_write_settlements(tmp_path / "s.csv", EEX_ROWS[:4]))
+    curve = ForwardCurve.from_settlements(table, source="EEX 2026-11-17")
+    assert list(curve.months.strftime("%Y-%m")) == ["2027-04", "2027-05", "2027-06"]
+    np.testing.assert_allclose(curve.prices, [71.221, 66.937, 64.975])
+    assert not curve.is_synthetic
+
+
+def test_strip_price_is_day_weighted() -> None:
+    q2_rows = EEX_ROWS[:3]
+    q1_rows = EEX_ROWS[4:7]
+    for rows, first, last, want in [
+        # (71.221*30 + 66.937*31 + 64.975*30) / 91
+        (q2_rows, "2027-04", "2027-06", 67.70249),
+        # 2028 is a leap year: (57.770*31 + 55.862*29 + 54.259*31) / 91
+        (q1_rows, "2028-01", "2028-03", 55.96590),
+    ]:
+        table = load_settlements(pd.DataFrame(rows, columns=["contract", "settlement_eur_mwh"]))
+        curve = ForwardCurve.from_settlements(table, source="test")
+        got = curve.strip_price(pd.Period(first, "M"), pd.Period(last, "M"))
+        assert got == pytest.approx(want, abs=1e-5)
+
+
+def test_strip_consistency_reports_covered_strips_only() -> None:
+    rows = [*EEX_ROWS[:4], EEX_ROWS[7]]  # Apr-Jun 27 months, Q2-27 and CAL-28
+    table = load_settlements(pd.DataFrame(rows, columns=["contract", "settlement_eur_mwh"]))
+    curve = ForwardCurve.from_settlements(table, source="test")
+    report = strip_consistency(curve, table)
+    assert list(report["contract"]) == ["Q2-27"]  # CAL-28 is not covered by the month contracts
+    row = report.iloc[0]
+    assert row["implied_eur_mwh"] == pytest.approx(67.70249, abs=1e-5)
+    assert row["diff_eur_mwh"] == pytest.approx(67.702 - 67.70249, abs=1e-5)
+
+
+def test_from_config_accepts_settlement_table(tmp_path: Path) -> None:
+    rows = [(m, 60.0 + i) for i, m in enumerate(["Mar-27", "Apr-27", "May-27"])] + [("Q2-27", 61.5)]
+    path = _write_settlements(tmp_path / "eex.csv", rows)
+    cfg = ForwardCurveConfig(source="csv", csv_path=path, synthetic=SYN)
+    curve = ForwardCurve.from_config(cfg, dt.date(2027, 4, 1), dt.date(2027, 5, 31))
+    assert list(curve.months.strftime("%Y-%m")) == ["2027-03", "2027-04", "2027-05"]
+    np.testing.assert_allclose(curve.prices, [60.0, 61.0, 62.0])

@@ -27,11 +27,12 @@ contract:
   fuel_loss: 0.0                     # fraction of injected volume lost, e.g. 0.005
 
 market:
-  valuation_date: "2026-11-18"       # set to the settlement date of the curve CSV
+  valuation_date: "2026-11-17"       # EEX settlement date of the forward curve
   discount_rate: 0.03                # continuously compounded, annual (illustrative)
   forward_curve:
-    source: synthetic                # "synthetic" or "csv"
-    csv_path: null                   # e.g. data/raw/ttf_forward_curve.csv (delivery_month, price)
+    source: csv                      # "synthetic" or "csv"
+    # EEX TTF futures settlements (contract, settlement_eur_mwh) or monthly (delivery_month, price)
+    csv_path: data/raw/eex_ttf_futures_settlements_2026-11-17.csv
     synthetic:                       # SYNTHETIC curve, not market data
       base_level_eur_mwh: 30.0
       winter_premium_eur_mwh: 5.0    # amplitude of the winter/summer seasonal swing
