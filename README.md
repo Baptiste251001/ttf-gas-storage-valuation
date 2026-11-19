@@ -112,7 +112,7 @@ calibration recovers known parameters; greeks stable across seeds with CRN.
 ## Related work
 
 The hedge here is a classical delta hedge with a fixed rebalancing rule. My companion repository
-`deep-hedging-transaction-costs` learns the hedging strategy directly under transaction costs, which is the natural
+[`deep-hedging-transaction-costs`](https://github.com/Baptiste251001/deep-hedging-transaction-costs) learns the hedging strategy directly under transaction costs, which is the natural
 way to address the cost / variance trade-off measured in notebook 05.
 
 ## Reproduce

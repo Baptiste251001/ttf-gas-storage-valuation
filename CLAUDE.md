@@ -109,4 +109,5 @@ Andersen-Broadie dual upper bound, AGSI comparison, Streamlit app.
 - Tests needing the EEX CSV call `tests.conftest.skip_without_market_data()` so CI (no data) skips them.
 - CLI: `gasstorage.cli.main`, wrapped by `scripts/run_valuation.py`. README numbers come from
   notebooks 04 (valuation, 10k+10k) and 05 (greeks / hedge, 5k+5k); keep them in sync if rerun.
-- Open: GitHub URL of the companion repo `deep-hedging-transaction-costs` (README cites it by name).
+- GitHub: https://github.com/Baptiste251001/ttf-gas-storage-valuation (public). Companion repo:
+  https://github.com/Baptiste251001/deep-hedging-transaction-costs. Push only when the user asks.
