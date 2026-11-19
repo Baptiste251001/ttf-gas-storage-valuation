@@ -57,7 +57,7 @@ level (inventory / working volume), contiguous over [0, 1], factor in (0, 1].
 
 ## Phases
 
-1. Scaffold (done) 2. Data 3. One-factor price model 4. Intrinsic (LP, DP, rolling intrinsic)
+1. Scaffold (done) 2. Data (done) 3. One-factor price model 4. Intrinsic (LP, DP, rolling intrinsic)
 5. LSMC (core) 6. Risk + results-first README 7. Extensions (only on request): Schwartz-Smith,
 Andersen-Broadie dual upper bound, AGSI comparison, Streamlit app.
 
