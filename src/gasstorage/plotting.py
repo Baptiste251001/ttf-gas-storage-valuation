@@ -11,6 +11,7 @@ from pathlib import Path
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
@@ -71,6 +72,23 @@ def mark_synthetic(ax: Axes, text: str = "SYNTHETIC DATA", corner: str = "upper 
         color=TEXT_SECONDARY,
         bbox={"boxstyle": "round,pad=0.3", "fc": NEUTRAL_FILL, "ec": GRID},
     )
+
+
+def fan_chart(
+    ax: Axes,
+    x: np.ndarray,
+    paths: np.ndarray,
+    label: str,
+    color: str = SERIES[0],
+) -> None:
+    """Median line with 5-95 % and 25-75 % percentile bands.
+
+    ``paths`` has shape ``(time, paths)``.
+    """
+    q = np.percentile(paths, [5, 25, 50, 75, 95], axis=1)
+    ax.fill_between(x, q[0], q[4], color=color, alpha=0.15, lw=0, label=f"{label}: 5-95 %")
+    ax.fill_between(x, q[1], q[3], color=color, alpha=0.30, lw=0, label=f"{label}: 25-75 %")
+    ax.plot(x, q[2], color=color, lw=1.5, label=f"{label}: median")
 
 
 def save_figure(fig: Figure, name: str, directory: str | Path = FIGURES_DIR) -> Path:

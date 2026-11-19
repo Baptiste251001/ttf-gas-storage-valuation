@@ -1,7 +1,7 @@
 # Default configuration for the TTF gas storage valuation.
 #
 # ALL CONTRACT PARAMETERS ARE ILLUSTRATIVE. They do not describe any real storage site.
-# Model parameters marked `placeholder` must be replaced by calibrated values (Phase 3).
+# Model parameters: MLE on TTF front-month, post-crisis window 2023-04 to 2026-11 (notebook 02).
 
 contract:
   start_date: "2027-04-01"           # gas storage year 2027/28: 1 April ...
@@ -40,8 +40,8 @@ market:
 
 model:
   name: one_factor                   # "one_factor" (Phase 3) or "two_factor" (Phase 7)
-  kappa: 5.0                         # placeholder: mean-reversion speed (1/year)
-  sigma: 0.6                         # placeholder: volatility of X (1/sqrt(year))
+  kappa: 4.784                       # MLE, se 1.585 (1/year); half-life 53 days
+  sigma: 0.694                       # MLE, se 0.016 (1/sqrt(year))
 
 monte_carlo:
   time_step: weekly                  # "daily" or "weekly"

@@ -57,7 +57,7 @@ level (inventory / working volume), contiguous over [0, 1], factor in (0, 1].
 
 ## Phases
 
-1. Scaffold (done) 2. Data (done) 3. One-factor price model 4. Intrinsic (LP, DP, rolling intrinsic)
+1. Scaffold (done) 2. Data (done) 3. One-factor price model (done) 4. Intrinsic (LP, DP, rolling intrinsic)
 5. LSMC (core) 6. Risk + results-first README 7. Extensions (only on request): Schwartz-Smith,
 Andersen-Broadie dual upper bound, AGSI comparison, Streamlit app.
 
@@ -73,8 +73,18 @@ Andersen-Broadie dual upper bound, AGSI comparison, Streamlit app.
 
 - Contract = storage year 2027/28 (2027-04-01 to 2028-03-31). `valuation_date` = settlement date of
   the hand-typed forward curve (`data/raw/ttf_forward_curve.csv`); synthetic curve until it exists.
-- Calibration: **reference window = post-crisis, 2023-04 to date**. Sensitivity on the full sample
-  with the 2020 price collapse, the 2021-2023 crisis and the 2026 rally flagged.
+- Calibration: **reference window = post-crisis, 2023-04 to date**, log-price minus linear trend +
+  2 Fourier harmonics, exact MLE, dt = 1/252: kappa = 4.784 (se 1.585), sigma = 0.694 (se 0.016),
+  half-life 53 days. Sensitivity on the full sample with the 2020 collapse, the 2021-2023 crisis and
+  the 2026 rally flagged. kappa is weakly identified (DF t-stat -3.0): report valuation sensitivity
+  to kappa in Phase 6; without the trend kappa = 2.7.
+- **Two curve cases, both kept and explained everywhere (notebooks 03-05, README):**
+  1. *Market case* (`storage_default.yaml`): EEX TTF settlements of 2026-11-17. Storage year 2027/28
+     is strictly backwardated, so intrinsic value = 0 and the whole value is extrinsic. This is the
+     real market answer and the headline result.
+  2. *Contango case* (`storage_synthetic.yaml`): SYNTHETIC seasonal curve with a summer-winter spread.
+     It shows what the market case cannot: positive intrinsic value, the LP = DP cross-check on a
+     non-trivial schedule, the intrinsic / extrinsic split, and rolling intrinsic vs LSMC.
 - AGSI+ key: only via the `AGSI_API_KEY` env var; data cached in `data/raw/agsi_<CC>.csv`.
 - Notebooks are executed with `jupyter nbconvert --to notebook --execute --inplace` and committed
   with outputs; figures go to `reports/figures/`.
