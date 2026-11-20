@@ -85,7 +85,7 @@ Daily settlements of all TTF futures (monthly to yearly, physical and financial)
 and the EEX gas indices (EGSI, EGIX, NDI, ...) are collected with the third-party scraper
 https://github.com/dieguisgs/eex-scraper, installed **next to** this repository (`../eex-scraper`, not vendored:
 the scraper has no licence). It calls the public JSON API behind the EEX Market Data Hub, which only serves a rolling
-window (about 31 sessions for futures, 40 days for spot, one year for indices), so the history builds up by running
+window (about 33 sessions, i.e. 45 calendar days, for futures and spot; one year for indices; requesting more, e.g. from 2015, returns the same), so the history builds up by running
 it again before the window rolls over (at least every 6 weeks). No scheduled task is installed; run it by hand:
 
 ```bash

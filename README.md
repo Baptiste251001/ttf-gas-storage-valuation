@@ -169,8 +169,9 @@ calibration recovers known parameters; greeks stable across seeds with CRN.
 * **LSMC is a lower bound,** with a downward grid bias of about 2 % at 101 levels (notebook 04). The dual bound
   brackets the optimum of the grid-restricted problem within 1.5-2.7 % under the historical parameters; under the
   two-factor model the cubic basis is weak and rolling intrinsic beats LSMC.
-* **Forward data.** One trading day of EEX settlements typed by hand; the hedge uses model-implied monthly forwards
-  without a delivery-month spot hedge.
+* **Forward data.** The headline uses one trading day of EEX settlements typed by hand (identical to the EEX hub
+  data); the public hub only serves about 45 days of history, so later sessions are accumulated locally. The hedge
+  uses model-implied monthly forwards without a delivery-month spot hedge.
 * **Weekly decisions** apply ratchets at the start of each week; daily runs give the same LSMC value within error.
 
 ## Related work
@@ -196,7 +197,8 @@ any data. Notebooks `01` to `05` reproduce every number and figure; `04` and `05
 ## Repository structure
 
 ```
-configs/          storage_default.yaml (EEX curve), storage_synthetic.yaml (synthetic curve)
+configs/          storage_default.yaml (EEX curve), storage_eex_hub.yaml (EEX hub curve),
+                  storage_synthetic.yaml (synthetic curve)
 data/             README with sources and licences; raw/ and processed/ are gitignored
 src/gasstorage/
   config.py       validated configuration dataclasses
@@ -215,9 +217,25 @@ tests/            pytest suite
 
 ## Data sources
 
-TTF front-month history and individual monthly contracts (`TTFZ26.NYM`, `TTFF27.NYM`, `TTFG27.NYM`): Yahoo
-Finance. Forward curve: EEX TTF Natural Gas Futures settlement prices of
-2026-11-17. Storage levels: GIE AGSI+ (Source: GIE AGSI+). Details and terms in [data/README.md](data/README.md).
+No market data is committed: every raw file lives in the gitignored `data/raw/` and is rebuilt from its source.
+
+| Data | Used for | Source | How it is obtained |
+|---|---|---|---|
+| TTF front-month daily history | calibration of the one-factor model (historical measure) | Yahoo Finance, `TTF=F` | automatic download (`gasstorage.data.ttf`) |
+| Individual monthly TTF contracts (`TTFZ26.NYM`, `TTFF27.NYM`, `TTFG27.NYM`) | futures volatility term structure, κ under Q, Schwartz-Smith fit | Yahoo Finance (NYMEX TTF futures) | automatic download (`gasstorage.data.ttf`) |
+| TTF forward curve of 2026-11-17 | headline valuation (`configs/storage_default.yaml`) | EEX TTF Natural Gas Futures settlement prices | table copied by hand from the EEX website |
+| Daily TTF futures settlements, day-ahead spot, EEX gas indices (EGSI) | curves of later sessions (`configs/storage_eex_hub.yaml`), run comparison, spot-front basis | public EEX Market Data Hub | collected locally with the third-party [eex-scraper](https://github.com/dieguisgs/eex-scraper), see below |
+| Storage fill levels NL / DE / FR | comparison of the optimal policy with real storage behaviour (notebook 08) | GIE AGSI+ API (Source: GIE AGSI+) | free API key in the `AGSI_API_KEY` environment variable |
+| Contango forward curve | second curve case (`configs/storage_synthetic.yaml`) | **SYNTHETIC**, generated from the config | no download |
+
+**EEX hub data.** The scraper is not part of this repository: it has no licence, so it is installed separately
+next to it (`../eex-scraper`) and only writes CSV files into `data/raw/eex_hub/`, which
+`gasstorage.data.eex_hub` reads. The scraper is configured for TTF only, at a slow request rate and without any
+workaround if EEX refuses a request. The public API only serves a rolling window (about 33 sessions, i.e.
+45 calendar days, for futures and spot; one year for indices), so the history is built up by running the scraper by
+hand at least every 6 weeks. Collected data stays local and is not redistributed.
+
+Licences, exact file formats and step-by-step instructions: [data/README.md](data/README.md).
 
 ## References
 
