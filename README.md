@@ -31,8 +31,10 @@ optionality, and how much of it is priced depends on how fast price shocks rever
 * **Historical dynamics, a statistical scenario: 4.9 MEUR.** Front-month *price levels* have reverted with a
   half-life of 53 days since 2023 ($\kappa_{\mathbb P} = 4.78$). If that persists, buying dips and selling spikes is
   worth about 4.9 EUR per MWh of capacity. Futures volatilities do not price this reversion: the gap reflects a
-  state-dependent risk premium, estimation error on $\kappa_{\mathbb P}$ (Dickey-Fuller −3.0), and fast spot shocks
-  that monthly futures cannot see.
+  state-dependent risk premium and estimation error on $\kappa_{\mathbb P}$ (Dickey-Fuller −3.0). It does *not*
+  come from fast day-ahead shocks: over the last year the EEX day-ahead index (EGSI) stayed within 1.4 % (standard
+  deviation) of the front month and closed the gap with a half-life of 0.7 days, too small to pay for a storage
+  round trip.
 
 On the contango curve the intrinsic spread dominates either way; optionality adds about 0.1 MEUR under risk-neutral
 dynamics and 1.5 MEUR under historical dynamics. ± is one Monte Carlo standard error (fixed seeds); LSMC uses weekly
@@ -152,8 +154,9 @@ calibration recovers known parameters; greeks stable across seeds with CRN.
   κ implied by futures volatilities (0.33) differ by an order of magnitude, and the market-case value moves from
   4.9 MEUR to at most 0.16 MEUR (dual bound). Even under the historical measure the value ranges from 1.2 to
   11.0 MEUR across calibration windows. **Parameter risk dwarfs Monte Carlo error.**
-* **Spot vs front month.** The model's "spot" is calibrated to the front-month future. True day-ahead dynamics (fast
-  weather-driven shocks) would need a third, fast factor and day-ahead data.
+* **Spot vs front month.** The model's "spot" is calibrated to the front-month future. One year of EEX day-ahead
+  index data (EGSI, collected with the EEX hub scraper) shows a spot-front basis with 1.4 % standard deviation and a
+  0.7-day half-life: a real but small third factor, left out of the valuation.
 * **Futures volatility data.** Three NYMEX contracts (Dec-26 to Feb-27) observed since 2023, the only ones Yahoo
   serves; far contracts trade thinly, which lowers measured correlations; ρ is weakly identified.
 * **LSMC is a lower bound,** with a downward grid bias of about 2 % at 101 levels (notebook 04). The dual bound

@@ -78,3 +78,27 @@ Used for the futures volatility term structure (notebook 06). Yahoo serves only 
 time, with their full history: on 2026-11-19 `TTFZ26.NYM`, `TTFF27.NYM` and `TTFG27.NYM` (from 2023-01-03). Their
 2026-11-17 closes match the EEX settlements within 0.05 EUR/MWh. Symbol convention: `TTF` + futures month code
 (F G H J K M N Q U V X Z) + two-digit year + `.NYM`, see `gasstorage.data.ttf.contract_ticker`.
+
+## 5. EEX Market Data Hub (local scraper, accumulated history)
+
+Daily settlements of all TTF futures (monthly to yearly, physical and financial), the day-ahead spot (`TTFDA`)
+and the EEX gas indices (EGSI, EGIX, NDI, ...) are collected with the third-party scraper
+https://github.com/dieguisgs/eex-scraper, installed **next to** this repository (`../eex-scraper`, not vendored:
+the scraper has no licence). It calls the public JSON API behind the EEX Market Data Hub, which only serves a rolling
+window (about 31 sessions for futures, 40 days for spot, one year for indices), so the history builds up by running
+it again before the window rolls over (at least every 6 weeks). No scheduled task is installed; run it by hand:
+
+```bash
+cd ../eex-scraper && .venv/Scripts/python run.py run      # Windows; .venv/bin/python on Linux/macOS
+```
+
+Scraper settings used (its `config.toml`): output `../ttf-gas-storage-valuation/data/raw/eex_hub`, commodity
+`NATGAS`, area `TTF`, futures / spot / indices without the 5 MW duplicates, 0.5 request per second, and the browser
+fallback **disabled** (if EEX blocks the API, collection stops; no workaround). Data stays in `data/raw/` and is not
+redistributed; check the EEX website terms of use for your own use.
+
+Reading it: `gasstorage.data.eex_hub.futures_panel()` (trade date x delivery month), `curve_on(root, date)` (a
+`ForwardCurve`), `series(root, "TTFDA")`. A configuration can use it directly with
+`market.forward_curve.source: eex_hub`, `csv_path: data/raw/eex_hub`, the trade date being `market.valuation_date`.
+First collection (2026-11-20): 33 sessions of monthly physical futures, 2026-10-06 to 2026-11-19, 84 delivery months
+(Dec-26 to Oct-33); the 2026-11-17 curve matches the hand-typed EEX table exactly.

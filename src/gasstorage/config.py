@@ -21,7 +21,7 @@ from typing import Any, Literal
 import yaml
 
 TimeStep = Literal["daily", "weekly"]
-CurveSource = Literal["synthetic", "csv"]
+CurveSource = Literal["synthetic", "csv", "eex_hub"]
 ModelName = Literal["one_factor", "two_factor"]
 BasisName = Literal["polynomial", "laguerre"]
 
@@ -191,9 +191,13 @@ class ForwardCurveConfig:
     synthetic: SyntheticCurveConfig
 
     def __post_init__(self) -> None:
-        _require(self.source in ("synthetic", "csv"), f"unknown curve source {self.source!r}")
-        if self.source == "csv":
-            _require(self.csv_path is not None, "csv_path is required when source is 'csv'")
+        _require(
+            self.source in ("synthetic", "csv", "eex_hub"), f"unknown curve source {self.source!r}"
+        )
+        if self.source in ("csv", "eex_hub"):
+            _require(
+                self.csv_path is not None, f"csv_path is required when source is {self.source!r}"
+            )
 
     @classmethod
     def from_dict(cls, raw: Mapping[str, Any]) -> ForwardCurveConfig:

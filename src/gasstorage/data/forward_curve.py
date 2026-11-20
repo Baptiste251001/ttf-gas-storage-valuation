@@ -185,7 +185,13 @@ class ForwardCurve:
         return cls(months, prices, source=source, is_synthetic=True)
 
     @classmethod
-    def from_config(cls, cfg: ForwardCurveConfig, start: dt.date, end: dt.date) -> ForwardCurve:
+    def from_config(
+        cls,
+        cfg: ForwardCurveConfig,
+        start: dt.date,
+        end: dt.date,
+        as_of: dt.date | None = None,
+    ) -> ForwardCurve:
         """Build the curve for a contract delivering from ``start`` to ``end`` (inclusive)."""
         first = pd.Period(start, freq="M")
         last = pd.Period(end, freq="M")
@@ -193,6 +199,15 @@ class ForwardCurve:
             n = (last - first).n + 1
             return cls.synthetic(first, n, cfg.synthetic)
         assert cfg.csv_path is not None  # guaranteed by ForwardCurveConfig validation
+        if cfg.source == "eex_hub":
+            if as_of is None:
+                raise ValueError("source 'eex_hub' needs the trade date: pass as_of")
+            from gasstorage.data import eex_hub  # local import: eex_hub imports this module
+
+            curve = eex_hub.curve_on(cfg.csv_path, pd.Timestamp(as_of))
+            if curve.months[0] > first or curve.months[-1] < last:
+                raise ValueError(f"EEX hub curve of {as_of} does not cover {first}..{last}")
+            return curve
         columns = pd.read_csv(cfg.csv_path, nrows=0).columns
         if set(SETTLEMENT_COLUMNS).issubset(columns):
             table = load_settlements(cfg.csv_path)

@@ -122,3 +122,10 @@ Andersen-Broadie dual upper bound, AGSI comparison, Streamlit app.
   ratcheted move (use >= 101 levels).
 - README headline (decided with the user): risk-neutral range 0-0.3 MEUR is the main result; the
   4.90 MEUR value under historical front-month dynamics is presented as a scenario.
+- EEX hub data (2026-11-20): third-party scraper in ../eex-scraper (reviewed, no licence, not vendored),
+  config: NATGAS/TTF, F+S+I without 5MW, 0.5 rps, browser fallback disabled (never bypass a block).
+  NO scheduled task (user refused); run by hand at least every 6 weeks. Reader: `data/eex_hub.py`;
+  curve source `eex_hub` (csv_path = hub root, trade date = valuation_date).
+- Spot vs front (EGSI TTF Day vs Yahoo TTF=F, 2025-11-20..2026-11-18, 250 days): log basis std 1.4 %,
+  OU half-life 0.7 days (DF -12). Fast spot factor is real but small: it does not explain the 4.9 MEUR
+  historical-dynamics value, which comes from slow front-month level reversion.

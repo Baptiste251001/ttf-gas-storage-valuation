@@ -133,7 +133,9 @@ def build_inputs(cfg: Config, step: str | None = None) -> ValuationInputs:
     """
     c = cfg.contract
     grid = decision_grid(c.start_date, c.end_date, step or cfg.monte_carlo.time_step)
-    curve = ForwardCurve.from_config(cfg.market.forward_curve, c.start_date, c.end_date)
+    curve = ForwardCurve.from_config(
+        cfg.market.forward_curve, c.start_date, c.end_date, as_of=cfg.market.valuation_date
+    )
     times = year_fraction(cfg.market.valuation_date, grid.dates)
     return ValuationInputs(
         contract=StorageContract.from_config(c),
