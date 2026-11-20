@@ -59,6 +59,16 @@ unchanged within error (dual upper bound 0.15 MEUR), and the historical-dynamics
 [reports/runs/compare_2026-11-17_vs_2026-11-19.md](reports/runs/compare_2026-11-17_vs_2026-11-19.md);
 reproduce with `python scripts/compare_curve_dates.py` or value one date with `configs/storage_eex_hub.yaml`.
 
+**What the EEX curve says about the dynamics (notebook 09).** The 32 daily moves of the whole EEX curve
+(6 October to 19 November 2026) are an independent test of the price models. With the historical mean reversion
+($\kappa = 4.78$) the 2027/28 forwards would barely move (0.1-9 % volatility); they move at 49-56 %, 6 to 8 standard
+errors away. The risk-neutral $\kappa_{\mathbb Q} = 0.33$, fitted on other data (three NYMEX contracts), matches all
+25 EEX contracts within 1.5 standard errors, and the winter-summer spread of the storage year moves at 10 % a year
+(8.5 % one-factor, 11.4 % two-factor). One component explains 90.5 % of the curve moves (95 % CI 83.6-94.5 %); the
+fitted two-factor model is too correlated (97.9 %). Only 32 days, one regime: indicative.
+
+![EEX forward volatilities vs models](reports/figures/09_vol_term_structure_eex.png)
+
 ## Historical-dynamics scenario: anatomy of the optionality
 
 Under the historical front-month dynamics the machinery has something to work with, and every piece of it is visible.
@@ -210,7 +220,8 @@ src/gasstorage/
   risk/           greeks (bump-and-revalue, CRN), delta hedge
   cli.py          command-line valuation
 notebooks/        01 data, 02 price model, 03 intrinsic, 04 LSMC, 05 greeks and hedging,
-                  06 volatility term structure and two factors, 07 dual bound, 08 policy vs AGSI
+                  06 volatility term structure and two factors, 07 dual bound, 08 policy vs AGSI,
+                  09 PCA of the EEX curve vs the models
 reports/figures/  figures used in this README
 tests/            pytest suite
 ```

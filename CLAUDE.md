@@ -132,3 +132,7 @@ Andersen-Broadie dual upper bound, AGSI comparison, Streamlit app.
 - Run comparison (2026-11-20): `scripts/compare_curve_dates.py` (uses `gasstorage.report`) -> reports/runs/.
   17/11 vs 19/11 hub curves: strip -0.8..-1.3 EUR/MWh, intrinsic 0, P value 4.895 -> 4.690 (deltas explain
   -186 of -205 kEUR), Q bounds unchanged. `configs/storage_eex_hub.yaml` = hub curve of 2026-11-19.
+- Curve PCA (notebook 09, `models/curve_pca.py`): 32 daily moves of EEX Dec-26..Dec-28 (2026-10-07..11-19).
+  PC1 90.5 % (CI 83.6-94.5), PC2 slope 5.1 %, PC3 2.3 %; some months locked to their quarter. Forward vols 49-56 %
+  on 2027/28: kappa_P = 4.78 rejected (6-8 SE), kappa_Q = 0.33 fits within 1.5 SE; 2F too correlated (PC1 97.9 %).
+  Storage spread vol 9.9 % (SE 1.3) vs 8.5 % 1F-Q, 11.4 % 2F.
