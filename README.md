@@ -1,33 +1,58 @@
 # TTF Gas Storage Valuation
 
 Valuing a natural gas storage contract on the Dutch TTF hub as a real option: intrinsic value by linear and
-mixed-integer programming on the forward curve, extrinsic value by Least-Squares Monte Carlo, greeks, and a
-monthly-forward delta hedge.
+mixed-integer programming on the forward curve, extrinsic value by Least-Squares Monte Carlo bracketed by a dual
+upper bound, risk-neutral calibration to the term structure of futures volatilities, greeks and a delta hedge.
 
 ## Key results
 
 A 1 TWh storage (150 days to fill, 100 days to empty, ratchets) over storage year **2027/28**, valued on
 **2026-11-17** against the **EEX TTF futures settlement curve** of that day. A second, **synthetic** contango curve
-uses the same contract and model to show what the market case cannot (see *Two curves* below).
+uses the same contract and models to show what the market case cannot (see *Two curves* below).
 
-| | Market case (EEX 2026-11-17) | Contango case (SYNTHETIC) |
+| Value on 2026-11-17 (MEUR) | Market case (EEX 2026-11-17) | Contango case (SYNTHETIC) |
 |---|---:|---:|
-| Intrinsic value (forward curve, weekly MILP) | **0.00 MEUR** | 6.54 MEUR |
-| Rolling intrinsic (monthly re-optimisation) | 3.53 ± 0.12 MEUR | 7.62 ± 0.13 MEUR |
-| **LSMC value** (out-of-sample lower bound) | **4.90 ± 0.06 MEUR** | **7.98 ± 0.06 MEUR** |
-| Extrinsic value (LSMC − intrinsic, same grid) | **4.90 MEUR (100 %)** | 1.55 MEUR (19 %) |
-| Unhedged P&L standard deviation | 5.69 MEUR | 5.56 MEUR |
-| Delta-hedged P&L standard deviation (weekly) | **2.14 MEUR (−62 %)** | 1.59 MEUR (−71 %) |
-| Vega (+0.01 σ) / sensitivity to κ (+1 per year) | +120 kEUR / +239 kEUR | +45 kEUR / +41 kEUR |
+| Intrinsic value (forward curve, weekly MILP) | **0.00** | 6.54 |
+| **Value under risk-neutral dynamics** (calibrated to futures volatilities) | **0 to 0.3** | **6.5 ± 0.15** |
+| Value under historical front-month dynamics (scenario) | 4.90 ± 0.06 | 7.98 ± 0.06 |
+| Duality gap of the LSMC policy (historical dynamics) | 2.7 % | 1.5 % |
+| P&L standard deviation, unhedged → delta-hedged (historical dynamics) | 5.69 → 2.14 (−62 %) | 5.56 → 1.59 (−71 %) |
 
-± is one Monte Carlo standard error (fixed seeds). LSMC uses weekly decisions, 101 volume levels and 10,000 regression
-plus 10,000 independent valuation paths (about 25 s on a laptop). Hedge statistics use 5,000 fit and 5,000 test paths.
+**The headline.** On the real curve the storage has *zero* intrinsic value: storage year 2027/28 trades in seasonal
+backwardation (every month from April 2027 to March 2028 is cheaper than the one before, from 71.2 to
+54.3 EUR/MWh), consistent with the low European storage fill of 2026 (GIE AGSI+). Its value is therefore pure
+optionality, and how much of it is priced depends on how fast price shocks revert:
 
-**The headline.** On the real curve the storage has *zero* intrinsic value, yet it is worth about **4.9 MEUR**
-(4.9 EUR per MWh of capacity), all of it optionality. Storage year 2027/28 trades in seasonal backwardation (every
-month from April 2027 to March 2028 is cheaper than the one before, from 71.2 to 54.3 EUR/MWh), consistent with the
-low European storage fill of 2026 shown by GIE AGSI+ data. No calendar spread can be locked in today; the value comes
-from reacting to price moves.
+* **Risk-neutral dynamics, the pricing answer: 0 to 0.3 MEUR.** The term structure of TTF futures volatilities
+  implies slow mean reversion ($\kappa_{\mathbb Q} = 0.33 \pm 0.02$ per year, half-life about 2 years) and a second,
+  long-term factor. A dual upper bound proves that no policy can extract more than **0.16 MEUR** in the one-factor
+  risk-neutral model; the best policy found in the two-factor Schwartz-Smith model (rolling intrinsic) earns
+  0.29 ± 0.09 MEUR. A desk prices what it can hedge, and futures markets say that price dips persist for years.
+* **Historical dynamics, a statistical scenario: 4.9 MEUR.** Front-month *price levels* have reverted with a
+  half-life of 53 days since 2023 ($\kappa_{\mathbb P} = 4.78$). If that persists, buying dips and selling spikes is
+  worth about 4.9 EUR per MWh of capacity. Futures volatilities do not price this reversion: the gap reflects a
+  state-dependent risk premium, estimation error on $\kappa_{\mathbb P}$ (Dickey-Fuller −3.0), and fast spot shocks
+  that monthly futures cannot see.
+
+On the contango curve the intrinsic spread dominates either way; optionality adds about 0.1 MEUR under risk-neutral
+dynamics and 1.5 MEUR under historical dynamics. ± is one Monte Carlo standard error (fixed seeds); LSMC uses weekly
+decisions, 101 volume levels and 10,000 regression plus 10,000 independent valuation paths (about 25 s on a laptop).
+
+![Futures volatility term structure](reports/figures/06_vol_term_structure.png)
+
+| Market case (MEUR) | 1F, historical $\kappa$ 4.78 | 1F, risk-neutral $\kappa$ 0.33 | 2F Schwartz-Smith, risk-neutral |
+|---|---:|---:|---:|
+| LSMC (out-of-sample lower bound) | 4.90 ± 0.06 | −0.13 ± 0.03 | 0.08 ± 0.05 |
+| Rolling intrinsic | 3.53 ± 0.12 | 0.04 ± 0.03 | 0.29 ± 0.09 |
+| Dual upper bound, grid-restricted problem (101 levels) | 4.50 ± 0.02 | **0.16 ± 0.01** | n/a |
+
+The negative LSMC estimate under one-factor risk-neutral dynamics is a weak policy, not a negative value: doing
+nothing is always feasible, so the value lies in [0, 0.16]. Under the two-factor model rolling intrinsic beats LSMC,
+whose cubic basis in two factors approximates the continuation value poorly (notebooks 06 and 07).
+
+## Historical-dynamics scenario: anatomy of the optionality
+
+Under the historical front-month dynamics the machinery has something to work with, and every piece of it is visible.
 
 ![Value decomposition](reports/figures/04_value_decomposition.png)
 
@@ -35,42 +60,21 @@ from reacting to price moves.
 
 On the market curve the optimal policy does not run a seasonal cycle: the median inventory stays below 30 % and the
 storage is filled opportunistically when the spot dips below the curve and emptied into price spikes. On the contango
-curve the policy follows the intrinsic fill-and-empty profile and trades around it.
+curve the policy follows the intrinsic fill-and-empty profile and trades around it. The dual bound puts the LSMC
+policy within 1.5-2.7 % of the optimum (notebook 07).
+
+| Historical dynamics | Market case | Contango case |
+|---|---:|---:|
+| Rolling intrinsic (monthly re-optimisation) | 3.53 ± 0.12 MEUR | 7.62 ± 0.13 MEUR |
+| LSMC value | 4.90 ± 0.06 MEUR | 7.98 ± 0.06 MEUR |
+| Extrinsic value (LSMC − intrinsic, same grid) | 4.90 MEUR (100 %) | 1.55 MEUR (19 %) |
+| Vega (+0.01 σ) / sensitivity to κ (+1 per year) | +120 kEUR / +239 kEUR | +45 kEUR / +41 kEUR |
 
 ![Hedged vs unhedged P&L](reports/figures/05_hedged_pnl.png)
 
 A weekly-rebalanced hedge with monthly forwards removes about 60-70 % of the P&L standard deviation without changing
-its mean. The remaining risk is mostly the spot exposure inside each delivery month, which monthly forwards cannot
-hedge.
-
-## Risk-neutral check: how much of the optionality is priced?
-
-The parameters above come from the historical mean reversion of front-month *prices* (half-life 53 days). Volatility
-is the same under every equivalent measure, so the **term structure of futures volatilities** pins down the
-risk-neutral dynamics instead. Using the price histories of individual TTF monthly futures since 2023, the relative
-volatility of a contract decays with its time to delivery at $\kappa_{\mathbb Q} = 0.33 \pm 0.02$ per year (half-life
-about 2 years, notebook 06), and correlations with the front month fall to about 0.6 at four years, which calls for a
-second, long-term factor (Schwartz-Smith: $\kappa = 0.46$, $\sigma_\chi = 0.74$, $\sigma_\xi = 0.27$).
-
-![Futures volatility term structure](reports/figures/06_vol_term_structure.png)
-
-| Market case (MEUR) | 1F, historical $\kappa$ 4.78 | 1F, risk-neutral $\kappa$ 0.33 | 2F Schwartz-Smith, risk-neutral |
-|---|---:|---:|---:|
-| LSMC (lower bound) | 4.90 ± 0.06 | −0.13 ± 0.03 | 0.08 ± 0.05 |
-| Rolling intrinsic | 3.53 ± 0.12 | 0.04 ± 0.03 | 0.29 ± 0.09 |
-| Dual upper bound, grid-restricted problem (101 levels) | 4.50 ± 0.02 | **0.16 ± 0.01** | n/a |
-
-**With risk-neutral dynamics the 2027/28 storage is worth almost nothing beyond its zero intrinsic value**: the dual
-bound shows that no policy can extract more than about 0.16 MEUR, against 4.9 MEUR under the historical dynamics. A
-desk prices what it can hedge, and futures volatilities say that price dips persist for years rather than weeks.
-The historical view is not worthless: day-ahead spot shocks do revert within days and are invisible in monthly
-futures, so a model with a separate fast spot factor calibrated to day-ahead prices would be needed to value that
-intra-month flexibility. The 4.9 MEUR headline should be read as the value *under the historical dynamics of the
-front month*; the risk-neutral range is 0 to 0.3 MEUR. On the contango curve the same comparison gives 7.98 vs about
-6.5 MEUR, i.e. an extrinsic premium of 1.5 vs 0.1 MEUR on top of 6.4 MEUR of intrinsic value.
-
-**Policy quality.** Under the historical parameters the dual gap is 1.5-2.7 % of the value: the LSMC policy is
-near-optimal (notebook 07).
+its mean (5,000 fit and 5,000 test paths). The remaining risk is mostly the spot exposure inside each delivery month,
+which monthly forwards cannot hedge.
 
 ![Optimal policy vs European storage fleet](reports/figures/08_policy_vs_agsi.png)
 

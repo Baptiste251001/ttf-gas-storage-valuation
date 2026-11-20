@@ -120,4 +120,5 @@ Andersen-Broadie dual upper bound, AGSI comparison, Streamlit app.
   2F model with sigma_xi = 0 reproduces 1F bit for bit (same op order, vander powers). Dual bound only
   for 1F + polynomial basis + grid-restricted moves (`moves="grid"`); grid step must be <= smallest
   ratcheted move (use >= 101 levels).
-- Open choice for the user: README headline (P value 4.90) vs risk-neutral range (0-0.3 MEUR).
+- README headline (decided with the user): risk-neutral range 0-0.3 MEUR is the main result; the
+  4.90 MEUR value under historical front-month dynamics is presented as a scenario.
