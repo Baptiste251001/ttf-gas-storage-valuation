@@ -1,0 +1,56 @@
+# Same contract as storage_default.yaml, curve read from the EEX hub scraper output
+# (data/raw/eex_hub, see data/README.md section 5) on the trade date valuation_date.
+# Default configuration for the TTF gas storage valuation.
+#
+# ALL CONTRACT PARAMETERS ARE ILLUSTRATIVE. They do not describe any real storage site.
+# Model parameters: MLE on TTF front-month, post-crisis window 2023-04 to 2026-11 (notebook 02).
+
+contract:
+  start_date: "2027-04-01"           # gas storage year 2027/28: 1 April ...
+  end_date: "2028-03-31"             # ... to 31 March (inclusive)
+  working_volume_mwh: 1_000_000      # working gas volume (WGV)
+  initial_inventory_mwh: 0
+  terminal_inventory_mwh: 0
+  # null => terminal inventory is a hard constraint.
+  # number => soft constraint, penalty in EUR per MWh of shortfall/excess.
+  terminal_penalty_eur_mwh: null
+  injection_days_to_fill: 150        # max injection rate = WGV / 150 per day
+  withdrawal_days_to_empty: 100      # max withdrawal rate = WGV / 100 per day
+  # Ratchets: piecewise-constant multipliers of the max rate, by fill level (inventory / WGV).
+  # Tiers must be contiguous and cover [0, 1]. Factor in (0, 1].
+  injection_ratchets:
+    - {lower: 0.0, upper: 0.7, factor: 1.0}
+    - {lower: 0.7, upper: 1.0, factor: 0.6}
+  withdrawal_ratchets:
+    - {lower: 0.0, upper: 0.3, factor: 0.5}
+    - {lower: 0.3, upper: 1.0, factor: 1.0}
+  injection_cost_eur_mwh: 0.5        # variable cost per MWh injected (illustrative)
+  withdrawal_cost_eur_mwh: 0.5       # variable cost per MWh withdrawn (illustrative)
+  fuel_loss: 0.0                     # fraction of injected volume lost, e.g. 0.005
+
+market:
+  valuation_date: "2026-11-19"       # trade date of the EEX hub curve (latest collected)
+  discount_rate: 0.03                # continuously compounded, annual (illustrative)
+  forward_curve:
+    source: eex_hub                  # "synthetic", "csv" or "eex_hub"
+    # EEX TTF futures settlements (contract, settlement_eur_mwh) or monthly (delivery_month, price)
+    csv_path: data/raw/eex_hub       # output of the EEX Market Data Hub scraper
+    synthetic:                       # SYNTHETIC curve, not market data
+      base_level_eur_mwh: 30.0
+      winter_premium_eur_mwh: 5.0    # amplitude of the winter/summer seasonal swing
+      contango_eur_mwh_per_year: 1.0
+
+model:
+  name: one_factor                   # "one_factor" (Phase 3) or "two_factor" (Phase 7)
+  kappa: 4.784                       # MLE, se 1.585 (1/year); half-life 53 days
+  sigma: 0.694                       # MLE, se 0.016 (1/sqrt(year))
+
+monte_carlo:
+  time_step: weekly                  # "daily" or "weekly"
+  n_paths_regression: 10_000
+  n_paths_valuation: 10_000
+  seed_regression: 12345             # the two seeds must differ: independent path sets
+  seed_valuation: 67890
+  volume_grid_size: 101
+  basis: polynomial                  # "polynomial" or "laguerre"
+  basis_degree: 3

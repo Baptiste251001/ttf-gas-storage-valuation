@@ -1,0 +1,51 @@
+{
+  "valuation_date": "2026-11-19",
+  "curve": {
+    "curve_source": "EEX hub Physical month futures, settlements of 2026-11-19",
+    "summer_avg_eur_mwh": 64.63633333333333,
+    "winter_avg_eur_mwh": 56.922870056497175,
+    "winter_minus_summer_eur_mwh": -7.713463276836151,
+    "first_month_eur_mwh": 70.336,
+    "last_month_eur_mwh": 53.205,
+    "strictly_decreasing": true,
+    "monthly_eur_mwh": {
+      "2027-04": 70.336,
+      "2027-05": 66.108,
+      "2027-06": 64.172,
+      "2027-07": 62.907,
+      "2027-08": 62.284,
+      "2027-09": 61.742,
+      "2027-10": 59.155,
+      "2027-11": 58.878,
+      "2027-12": 58.682,
+      "2028-01": 56.66,
+      "2028-02": 54.783,
+      "2028-03": 53.205
+    }
+  },
+  "intrinsic_milp_eur": 0.0,
+  "intrinsic_same_grid_eur": 0.0,
+  "settings": {
+    "n_paths": 10000,
+    "n_levels": 101,
+    "step": "weekly"
+  },
+  "models": {
+    "1F historical (P)": {
+      "lsmc_eur": 4690351.179974642,
+      "lsmc_se_eur": 55828.96321586211
+    },
+    "1F risk-neutral (Q)": {
+      "lsmc_eur": -136948.5864573863,
+      "lsmc_se_eur": 22879.652981620427,
+      "grid_lower_eur": -128934.27428672242,
+      "grid_lower_se_eur": 21965.439449941252,
+      "dual_upper_eur": 145690.89260616765,
+      "dual_se_eur": 8812.130268020772
+    },
+    "2F Schwartz-Smith (Q)": {
+      "lsmc_eur": 51307.73488752575,
+      "lsmc_se_eur": 44761.380001249345
+    }
+  }
+}

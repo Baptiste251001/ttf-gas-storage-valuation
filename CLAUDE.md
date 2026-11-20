@@ -129,3 +129,6 @@ Andersen-Broadie dual upper bound, AGSI comparison, Streamlit app.
 - Spot vs front (EGSI TTF Day vs Yahoo TTF=F, 2025-11-20..2026-11-18, 250 days): log basis std 1.4 %,
   OU half-life 0.7 days (DF -12). Fast spot factor is real but small: it does not explain the 4.9 MEUR
   historical-dynamics value, which comes from slow front-month level reversion.
+- Run comparison (2026-11-20): `scripts/compare_curve_dates.py` (uses `gasstorage.report`) -> reports/runs/.
+  17/11 vs 19/11 hub curves: strip -0.8..-1.3 EUR/MWh, intrinsic 0, P value 4.895 -> 4.690 (deltas explain
+  -186 of -205 kEUR), Q bounds unchanged. `configs/storage_eex_hub.yaml` = hub curve of 2026-11-19.

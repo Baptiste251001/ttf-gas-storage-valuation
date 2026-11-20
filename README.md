@@ -52,6 +52,13 @@ The negative LSMC estimate under one-factor risk-neutral dynamics is a weak poli
 nothing is always feasible, so the value lies in [0, 0.16]. Under the two-factor model rolling intrinsic beats LSMC,
 whose cubic basis in two factors approximates the continuation value poorly (notebooks 06 and 07).
 
+**Latest run (EEX hub, 2026-11-19).** With the curve two sessions later, collected by the EEX hub scraper, the
+strip is 0.8-1.3 EUR/MWh lower and slightly more backwardated: intrinsic stays at 0, the risk-neutral bounds are
+unchanged within error (dual upper bound 0.15 MEUR), and the historical-dynamics value falls by 0.2 MEUR to
+4.69 MEUR, 90 % of which is explained by the monthly deltas (winter fell more than summer). Details:
+[reports/runs/compare_2026-11-17_vs_2026-11-19.md](reports/runs/compare_2026-11-17_vs_2026-11-19.md);
+reproduce with `python scripts/compare_curve_dates.py` or value one date with `configs/storage_eex_hub.yaml`.
+
 ## Historical-dynamics scenario: anatomy of the optionality
 
 Under the historical front-month dynamics the machinery has something to work with, and every piece of it is visible.
